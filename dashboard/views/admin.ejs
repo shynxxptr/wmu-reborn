@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="id" data-bs-theme="dark">
+
+<head>
+    <title>Alice Admin Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="/styles/theme.css" rel="stylesheet">
+    <style>
+        body {
+            font-size: 0.9rem;
+        }
+    </style>
+</head>
+
+<body>
+
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary mb-4">
+        <div class="container">
+            <a class="navbar-brand text-info fw-bold" href="/">🤖 ALICE ADMIN</a>
+            <div class="d-flex gap-2">
+                <a href="/" class="btn btn-sm <%= activeTab === 'roles' ? 'btn-primary' : 'btn-outline-secondary' %>">👥
+                    Roles</a>
+                <a href="/stocks"
+                    class="btn btn-sm <%= activeTab === 'stocks' ? 'btn-success' : 'btn-outline-secondary' %>">🎒
+                    Stocks</a>
+                <a href="/moderation"
+                    class="btn btn-sm <%= activeTab === 'moderation' ? 'btn-danger' : 'btn-outline-secondary' %>">🛡️
+                    Moderation</a>
+                <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+
+        <% if (activeTab==='roles' ) { %>
+            <div class="card glass-panel shadow">
+                <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0">Active Roles (<%= roleData.length %>)</h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0 align-middle">
+                            <thead class="table-secondary">
+                                <tr>
+                                    <th>Role Info</th>
+                                    <th>Owner</th>
+                                    <th>Sisa Waktu (Real-time)</th>
+                                    <th>Nebeng (Shared)</th>
+                                    <th class="text-end">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% roleData.forEach(r=> { %>
+                                    <tr>
+                                        <td>
+                                            <span class="badge rounded-pill"
+                                                style="background-color: <%= r.roleColor %>; color: #fff; text-shadow: 0 0 2px #000;">
+                                                <%= r.roleName %>
+                                            </span>
+                                            <div class="small text-muted mt-1" style="font-size: 0.75rem;">ID: <%=
+                                                    r.roleId %>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <strong>
+                                                <%= r.ownerName %>
+                                            </strong>
+                                        </td>
+                                        <td>
+                                            <span class="countdown"
+                                                data-expires="<%= r.expiresAt %>">Calculating...</span>
+                                            <div class="small text-muted">
+                                                <%= new Date(r.expiresAt).toLocaleString('id-ID') %>
+                                            </div>
+                                        </td>
+                                        <td>
+                                            <% if(r.sharedUsers.length> 0) { %>
+                                                <% r.sharedUsers.forEach(user=> { %>
+                                                    <span class="badge bg-secondary mb-1">
+                                                        <%= user %>
+                                                    </span>
+                                                    <% }) %>
+                                                        <% } else { %>
+                                                            <span class="text-muted small">-</span>
+                                                            <% } %>
+                                        </td>
+                                        <td class="text-end">
+                                            <button class="btn btn-sm btn-outline-warning me-1"
+                                                onclick="openTimeModal('<%= r.roleId %>', '<%= r.roleName %>')">
+                                                ⏱️ Atur Waktu
+                                            </button>
+                                            <form action="/api/delete-role" method="POST" class="d-inline"
+                                                onsubmit="return confirm('Hapus paksa role ini?');">
+                                                <input type="hidden" name="roleId" value="<%= r.roleId %>">
+                                                <button class="btn btn-sm btn-outline-danger">🗑️</button>
+                                            </form>
+                                        </td>
+                                    </tr>
+                                    <% }); %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <% } %>
+
+                <% if (activeTab==='stocks' ) { %>
+                    <div class="row g-3">
+                        <% stocks.forEach(s=> { %>
+                            <div class="col-md-4">
+                                <div class="card glass-panel h-100 border-secondary">
+                                    <div class="card-header fw-bold text-warning d-flex justify-content-between">
+                                        <span>
+                                            <%= TIKET_CONFIG[s.jenis_tiket].label %>
+                                        </span>
+                                        <span class="badge bg-dark border border-secondary">
+                                            <%= s.jenis_tiket %>
+                                        </span>
+                                    </div>
+                                    <div class="card-body">
+                                        <form action="/api/update-stock" method="POST">
+                                            <input type="hidden" name="jenis" value="<%= s.jenis_tiket %>">
+
+                                            <div class="row g-2 mb-2">
+                                                <div class="col-6">
+                                                    <label class="small text-muted">Kuota</label>
+                                                    <input type="number" name="max_stock"
+                                                        class="form-control form-control-sm bg-dark text-white"
+                                                        value="<%= s.max_stock %>">
+                                                </div>
+                                                <div class="col-6">
+                                                    <label class="small text-muted">Nilai (Angka)</label>
+                                                    <input type="number" name="price_value"
+                                                        class="form-control form-control-sm bg-dark text-white"
+                                                        value="<%= s.price_value %>">
+                                                </div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <label class="small text-muted">Label Harga</label>
+                                                <input type="text" name="price_text"
+                                                    class="form-control form-control-sm bg-dark text-white"
+                                                    value="<%= s.price_text %>">
+                                            </div>
+                                            <button type="submit"
+                                                class="btn btn-success btn-sm w-100 mb-2">Simpan</button>
+                                        </form>
+                                        <form action="/api/reset-stock" method="POST"
+                                            onsubmit="return confirm('Reset terjual ke 0?');">
+                                            <input type="hidden" name="jenis" value="<%= s.jenis_tiket %>">
+                                            <button class="btn btn-outline-danger btn-sm w-100">Reset Terjual</button>
+                                        </form>
+                                    </div>
+                                    <div class="card-footer text-center small">
+                                        Sold: <b class="text-white">
+                                            <%= s.sold %>
+                                        </b> | Sisa: <b
+                                            class="<%= (s.max_stock-s.sold)<=0?'text-danger':'text-success'%>">
+                                            <%= s.max_stock - s.sold %>
+                                        </b>
+                                    </div>
+                                </div>
+                            </div>
+                            <% }); %>
+                    </div>
+                    <% } %>
+    </div>
+
+    <div class="modal fade" id="timeModal" tabindex="-1">
+        <div class="modal-dialog modal-sm modal-dialog-centered">
+            <div class="modal-content glass-panel border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-warning">⏱️ Atur Waktu</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <form action="/api/manage-time" method="POST">
+                    <div class="modal-body">
+                        <input type="hidden" name="roleId" id="modalRoleId">
+                        <p class="small text-muted mb-3">Role: <span id="modalRoleName"
+                                class="text-white fw-bold"></span></p>
+
+                        <div class="mb-2">
+                            <label class="small text-muted">Aksi</label>
+                            <select name="action" class="form-select form-select-sm bg-dark text-white">
+                                <option value="add">➕ Tambah Waktu</option>
+                                <option value="sub">➖ Kurangi Waktu</option>
+                            </select>
+                        </div>
+
+                        <div class="row g-2">
+                            <div class="col-7">
+                                <label class="small text-muted">Jumlah</label>
+                                <input type="number" name="amount"
+                                    class="form-control form-control-sm bg-dark text-white" required min="1">
+                            </div>
+                            <div class="col-5">
+                                <label class="small text-muted">Satuan</label>
+                                <select name="unit" class="form-select form-select-sm bg-dark text-white">
+                                    <option value="days">Hari</option>
+                                    <option value="hours">Jam</option>
+                                    <option value="minutes">Menit</option>
+                                    <option value="seconds">Detik</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer border-secondary p-2">
+                        <button type="submit" class="btn btn-primary btn-sm w-100">Eksekusi</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // Script Countdown Real-time
+        setInterval(() => {
+            document.querySelectorAll('.countdown').forEach(el => {
+                const expires = parseInt(el.getAttribute('data-expires'));
+                const now = Date.now();
+                const diff = expires - now;
+
+                if (diff <= 0) {
+                    el.innerHTML = "EXPIRED";
+                    el.className = "countdown text-danger";
+                } else {
+                    const d = Math.floor(diff / (1000 * 60 * 60 * 24));
+                    const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                    const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const s = Math.floor((diff % (1000 * 60)) / 1000);
+                    el.innerHTML = `${d}h ${h}j ${m}m ${s}d`;
+                }
+            });
+        }, 1000);
+
+        // Script Modal
+        function openTimeModal(id, name) {
+            document.getElementById('modalRoleId').value = id;
+            document.getElementById('modalRoleName').innerText = name;
+            new bootstrap.Modal(document.getElementById('timeModal')).show();
+        }
+    </script>
+
+</body>
+
+</html>
