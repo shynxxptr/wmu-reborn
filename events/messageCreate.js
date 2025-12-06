@@ -1,6 +1,7 @@
 const { Events } = require('discord.js');
 const db = require('../database.js');
 const gameHandler = require('../handlers/gameHandler.js');
+const gamblingHandler = require('../handlers/gamblingHandler.js');
 
 // KONFIGURASI JOB
 const JOBS = {
@@ -174,67 +175,11 @@ module.exports = {
 
         // --- 4. GAMBLING ---
 
-        // !coinflip <amount> <h/t>
-        if (content.startsWith('!coinflip ') || content.startsWith('!cf ')) {
+        // --- 4. GAMBLING ---
+        if (content.startsWith('!coinflip') || content.startsWith('!cf') || content.startsWith('!slots') || content.startsWith('!doaujang')) {
             const args = content.split(' ');
-            const amount = parseInt(args[1]);
-            const choice = args[2]?.toLowerCase(); // head/tail atau h/t
-
-            if (isNaN(amount) || amount <= 0 || !['head', 'tail', 'h', 't'].includes(choice)) {
-                return message.reply('❌ Format: `!cf <jumlah> <head/tail>`');
-            }
-
-            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
-            if (!user || user.uang_jajan < amount) return message.reply('💸 **Uang gak cukup!** Jangan maksa judi.');
-
-            const isHead = Math.random() < 0.5;
-            const result = isHead ? 'head' : 'tail';
-            const win = (choice.startsWith('h') && isHead) || (choice.startsWith('t') && !isHead);
-
-            if (win) {
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${amount.toLocaleString('id-ID')}! 🎉`);
-            } else {
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu KALAH Rp ${amount.toLocaleString('id-ID')}. Sad. 📉`);
-            }
-        }
-
-        // !slots <amount>
-        if (content.startsWith('!slots ')) {
-            const amount = parseInt(content.split(' ')[1]);
-            if (isNaN(amount) || amount <= 0) return message.reply('❌ Format: `!slots <jumlah>`');
-
-            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
-            if (!user || user.uang_jajan < amount) return message.reply('💸 **Uang gak cukup!**');
-
-            // Deduct bet first
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
-
-            // EMOJI MAKANAN KANTIN
-            const items = ['☕', '🍝', '🥣', '🍹', '🍞', '🍡'];
-            const r1 = items[Math.floor(Math.random() * items.length)];
-            const r2 = items[Math.floor(Math.random() * items.length)];
-            const r3 = items[Math.floor(Math.random() * items.length)];
-
-            const msg = await message.reply(`🎰 **SLOTS** 🎰\n[ ❓ | ❓ | ❓ ]`);
-
-            // Animation effect (fake delay)
-            setTimeout(() => {
-                let winMultiplier = 0;
-                if (r1 === r2 && r2 === r3) winMultiplier = 5; // Jackpot
-                else if (r1 === r2 || r2 === r3 || r1 === r3) winMultiplier = 2; // Small Win
-
-                const winAmount = amount * winMultiplier;
-                if (winMultiplier > 0) {
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, userId); // Add win (original bet already deducted)
-                }
-
-                let resultText = winMultiplier > 0 ? `🎉 **WIN!** (+Rp ${winAmount.toLocaleString('id-ID')})` : '📉 **LOSE**';
-                if (winMultiplier === 5) resultText = `🚨 **JACKPOT!!!** (+Rp ${winAmount.toLocaleString('id-ID')})`;
-
-                msg.edit(`🎰 **SLOTS** 🎰\n[ ${r1} | ${r2} | ${r3} ]\n${resultText}`);
-            }, 1500);
+            const command = args[0];
+            await gamblingHandler.handleGambling(message, command, args);
         }
 
         // !palak <@user> <amount>
