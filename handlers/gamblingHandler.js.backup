@@ -331,7 +331,7 @@ module.exports = {
             });
         }
 
-        // !bs / !bigslot (Gates of Mang Ujang) - AUTO/TURBO VERSION
+        // !bs / !bigslot (Gates of Mang Ujang)
         if (command === '!bs' || command === '!bigslot') {
             let argsIdx = 1;
             let isBuy = false;
@@ -388,50 +388,29 @@ module.exports = {
             };
 
             const getPayout = (symbol, count) => {
-                if (count < 8) return 0; // Back to 8
+                if (count < 8) return 0;
                 if (symbols.low.includes(symbol)) {
-                    if (count >= 12) return 1.5; // 1.5x (was 8x)
-                    if (count >= 10) return 1;   // 1x (was 3x)
-                    return 0.5; // 8-9 simbol = 0.5x (was 1.5x)
+                    if (count >= 12) return 10;
+                    if (count >= 10) return 3;
+                    return 1.5;
                 }
                 if (symbols.high.includes(symbol)) {
-                    if (count >= 12) return 2.5; // 2.5x (was 40x)
-                    if (count >= 10) return 1.5; // 1.5x (was 12x)
-                    return 1; // 8-9 simbol = 1x (was 4x)
+                    if (count >= 12) return 50;
+                    if (count >= 10) return 10;
+                    return 3;
                 }
                 return 0;
             };
 
             const generateGrid = () => {
-                // STREAK SYSTEM: Hot (20%), Cold (20%), Normal (60%)
-                const streakRoll = Math.random();
-                let scatterChance, multiChance, highChance;
-
-                if (streakRoll < 0.15) {
-                    // HOT STREAK - Hoki banget!
-                    scatterChance = 0.05;  // 5%
-                    multiChance = 0.07;    // 2%
-                    highChance = 0.58;     // 51%
-                } else if (streakRoll < 0.45) {
-                    // COLD STREAK - Rungkad parah! (30% chance)
-                    scatterChance = 0.008; // 0.8% (susah banget free spins)
-                    multiChance = 0.015;   // 0.7% (multiplier langka)
-                    highChance = 0.30;     // 28.5% (kebanyakan low symbol)
-                } else {
-                    // NORMAL
-                    scatterChance = 0.025; // 2.5%
-                    multiChance = 0.04;    // 1.5%
-                    highChance = 0.47;     // 43%
-                }
-
                 const grid = [];
                 for (let i = 0; i < 5; i++) {
                     const row = [];
                     for (let j = 0; j < 6; j++) {
                         const r = Math.random();
-                        if (r < scatterChance) row.push(symbols.scatter);
-                        else if (r < multiChance) row.push(symbols.multi);
-                        else if (r < highChance) row.push(symbols.high[Math.floor(Math.random() * symbols.high.length)]);
+                        if (r < 0.02) row.push(symbols.scatter);
+                        else if (r < 0.03) row.push(symbols.multi);
+                        else if (r < 0.45) row.push(symbols.high[Math.floor(Math.random() * symbols.high.length)]);
                         else row.push(symbols.low[Math.floor(Math.random() * symbols.low.length)]);
                     }
                     grid.push(row);
@@ -439,200 +418,174 @@ module.exports = {
                 return grid;
             };
 
-            // ASCII Helper
-            const renderFrame = (gridRows, footer = '') => {
-                const borderTop = '╔══════════════════════════════════╗';
-                const borderBot = '╚══════════════════════════════════╝';
-                const title = '║    ⚡ GATES OF MANG UJANG ⚡     ║';
+            // Force Scatters for Buy Feature
+            let grid = generateGrid();
+            if (isBuy) {
+                // Ensure at least 4 scatters
+                let scatters = 0;
+                for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) if (grid[r][c] === symbols.scatter) scatters++;
 
-                let content = `${borderTop}\n${title}\n${borderBot}\n`;
+                while (scatters < 4) {
+                    const r = Math.floor(Math.random() * 5);
+                    const c = Math.floor(Math.random() * 6);
+                    if (grid[r][c] !== symbols.scatter) {
+                        grid[r][c] = symbols.scatter;
+                        scatters++;
+                    }
+                }
+            }
 
-                gridRows.forEach(row => {
-                    content += `║ ${row.join('  ')} ║\n`;
-                });
-                content += borderBot;
-                if (footer) content += `\n${footer}`;
-                return content;
-            };
-
+            // --- ANIMATION START ---
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const spinning = '🌀';
 
-            let msg = await message.reply(`🚀 **Memulai ${mode === 'normal' ? 'Spin' : mode.toUpperCase() + ' Mode'} (${spinCount}x)...**`);
-
-            let totalSpent = 0;
-            let totalWon = 0;
-            let winCount = 0;
-
-            // --- SPIN LOOP ---
-            for (let i = 1; i <= spinCount; i++) {
-                // Re-check balance
-                const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-                if (user.uang_jajan < costPerSpin) {
-                    await message.channel.send(`⚠️ **Stop!** Uang habis di spin ke-${i}.`);
-                    break;
-                }
-
-                // Deduct
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(costPerSpin, userId);
-                totalSpent += costPerSpin;
-                handleJackpot(costPerSpin, userId);
-
-                // Generate Grid
-                let grid = generateGrid();
-                if (isBuy) {
-                    let scatters = 0;
-                    for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) if (grid[r][c] === symbols.scatter) scatters++;
-                    while (scatters < 4) {
-                        const r = Math.floor(Math.random() * 5);
-                        const c = Math.floor(Math.random() * 6);
-                        if (grid[r][c] !== symbols.scatter) {
-                            grid[r][c] = symbols.scatter;
-                            scatters++;
-                        }
-                    }
-                }
-
-                // Animation (Only for Normal or Auto)
-                if (mode !== 'turbo') {
-                    for (let r = 1; r <= 5; r++) {
-                        const partialGrid = [];
-                        for (let j = 0; j < 5; j++) {
-                            if (j < r) partialGrid.push(grid[j]);
-                            else partialGrid.push(Array(6).fill(spinning));
-                        }
-                        const footer = `Bet: Rp ${amount.toLocaleString('id-ID')}\nSpin ${i}/${spinCount}`;
-                        await msg.edit(renderFrame(partialGrid, footer));
-                        await delay(800);
-                    }
-                }
-
-                // Calculate Win
-                let spinWin = 0;
-                let log = [];
-
-                // 1. Scatters
-                let scatterCount = 0;
-                for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) if (grid[r][c] === symbols.scatter) scatterCount++;
-                if (scatterCount >= 4) {
-                    const bonus = costPerSpin * (Math.random() * 50 + 10);
-                    spinWin += bonus;
-                    log.push(`✨ **FREE SPINS!** (+Rp ${bonus.toLocaleString('id-ID')})`);
-                }
-
-                // 2. Symbols
-                const counts = {};
-                for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) {
-                    const s = grid[r][c];
-                    counts[s] = (counts[s] || 0) + 1;
-                }
-
-                let roundWin = 0;
-                for (const [sym, count] of Object.entries(counts)) {
-                    if (sym === symbols.scatter || sym === symbols.multi) continue;
-                    const pay = getPayout(sym, count);
-                    if (pay > 0) {
-                        roundWin += amount * pay;
-                    }
-                }
-
-                // 3. Multipliers
-                let roundMulti = 0;
-                for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) {
-                    if (grid[r][c] === symbols.multi) {
-                        roundMulti += [2, 5, 10, 25, 50, 100][Math.floor(Math.random() * 6)];
-                    }
-                }
-
-                if (roundWin > 0) {
-                    if (roundMulti > 0) {
-                        spinWin += roundWin * roundMulti;
-                        log.push(`💣 **Multiplier x${roundMulti}**`);
+            const renderAnimGrid = (revealedRows) => {
+                let display = `⚡ **GATES OF MANG UJANG** ⚡\nBet: Rp ${amount.toLocaleString('id-ID')}\n\n`;
+                for (let r = 0; r < 5; r++) {
+                    if (r < revealedRows) {
+                        display += grid[r].join(' ') + '\n';
                     } else {
-                        spinWin += roundWin;
+                        display += Array(6).fill(spinning).join(' ') + '\n';
                     }
                 }
+                return display + `\n*Mesin sedang berputar...*`;
+            };
 
-                // Payout
-                if (spinWin > 0) {
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(spinWin, userId);
-                    totalWon += spinWin;
-                    winCount++;
-                }
+            const msg = await message.reply(renderAnimGrid(0));
 
-                // Update Message (Final Result of this spin)
-                const resultText = spinWin > 0 ? `💰 **WIN: Rp ${spinWin.toLocaleString('id-ID')}**` : `📉 **RUNGKAD**`;
-                const footer = `Bet: Rp ${amount.toLocaleString('id-ID')}\nSpin ${i}/${spinCount}\n${resultText}\n${log.join(' | ')}`;
+            // Reveal 5 Rows
+            for (let i = 1; i <= 5; i++) {
+                await delay(1000);
+                await msg.edit(renderAnimGrid(i));
+            }
+            // --- ANIMATION END ---
 
-                if (mode === 'turbo') {
-                    await msg.edit(renderFrame(grid, footer));
-                    await delay(500);
-                } else {
-                    await msg.edit(renderFrame(grid, footer));
-                    await delay(1500);
+            // Calculate Win
+            let spinWin = 0;
+            let log = [];
+
+            // 1. Scatters
+            let scatterCount = 0;
+            for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) if (grid[r][c] === symbols.scatter) scatterCount++;
+            if (scatterCount >= 4) {
+                const bonus = costPerSpin * (Math.random() * 50 + 10);
+                spinWin += bonus;
+                log.push(`✨ **FREE SPINS!** (+Rp ${bonus.toLocaleString('id-ID')})`);
+            }
+
+            // 2. Symbols
+            const counts = {};
+            for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) {
+                const s = grid[r][c];
+                counts[s] = (counts[s] || 0) + 1;
+            }
+
+            let roundWin = 0;
+            for (const [sym, count] of Object.entries(counts)) {
+                if (sym === symbols.scatter || sym === symbols.multi) continue;
+                const pay = getPayout(sym, count);
+                if (pay > 0) {
+                    roundWin += amount * pay;
                 }
             }
 
-            // --- FINAL SUMMARY ---
-            if (spinCount > 1) {
-                const profit = totalWon - totalSpent;
-                const profitText = profit >= 0 ? `📈 **PROFIT:** Rp ${profit.toLocaleString('id-ID')}` : `📉 **RUGI:** Rp ${Math.abs(profit).toLocaleString('id-ID')}`;
+            // 3. Multipliers
+            let roundMulti = 0;
+            for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) {
+                if (grid[r][c] === symbols.multi) {
+                    roundMulti += [2, 5, 10, 25, 50, 100][Math.floor(Math.random() * 6)];
+                }
+            }
 
-                const summary = `📊 **HASIL AUTO SPIN** 📊\n` +
-                    `Total Spin: ${spinCount}\n` +
-                    `Total Modal: Rp ${totalSpent.toLocaleString('id-ID')}\n` +
-                    `Total Menang: Rp ${totalWon.toLocaleString('id-ID')}\n` +
-                    `${profitText}`;
+            if (roundWin > 0) {
+                if (roundMulti > 0) {
+                    spinWin += roundWin * roundMulti;
+                    log.push(`💣 **Multiplier x${roundMulti}**`);
+                } else {
+                    spinWin += roundWin;
+                }
+            }
 
-                await message.channel.send(summary);
+            // Payout
+            if (spinWin > 0) {
+                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(spinWin, userId);
+                totalWon += spinWin;
+                winCount++;
+            }
+
+            // Update Message (Final Result of this spin)
+            const resultText = spinWin > 0 ? `💰 **WIN: Rp ${spinWin.toLocaleString('id-ID')}**` : `📉 **RUNGKAD**`;
+            const footer = `Bet: Rp ${amount.toLocaleString('id-ID')}\nSpin ${i}/${spinCount}\n${resultText}\n${log.join(' | ')}`;
+
+            if (mode === 'turbo') {
+                await msg.edit(renderFrame(grid, footer));
+                await delay(500);
+            } else {
+                await msg.edit(renderFrame(grid, footer));
+                await delay(1500);
             }
         }
+
+        // --- FINAL SUMMARY ---
+        if (spinCount > 1) {
+            const profit = totalWon - totalSpent;
+            const profitText = profit >= 0 ? `📈 **PROFIT:** Rp ${profit.toLocaleString('id-ID')}` : `📉 **RUGI:** Rp ${Math.abs(profit).toLocaleString('id-ID')}`;
+
+            const summary = `📊 **HASIL AUTO SPIN** 📊\n` +
+                `Total Spin: ${spinCount}\n` +
+                `Total Modal: Rp ${totalSpent.toLocaleString('id-ID')}\n` +
+                `Total Menang: Rp ${totalWon.toLocaleString('id-ID')}\n` +
+                `${profitText}`;
+
+            await message.channel.send(summary);
+        }
+    }
 
         // !raffle
-        if (command === '!raffle') {
-            const sub = args[1]?.toLowerCase();
+        if(command === '!raffle') {
+    const sub = args[1]?.toLowerCase();
 
-            if (sub === 'buy') {
-                const count = parseInt(args[2]);
-                if (isNaN(count) || count <= 0) return message.reply('❌ Format: `!raffle buy <jumlah>`');
+    if (sub === 'buy') {
+        const count = parseInt(args[2]);
+        if (isNaN(count) || count <= 0) return message.reply('❌ Format: `!raffle buy <jumlah>`');
 
-                const price = 5000;
-                const res = db.buyRaffleTicket(userId, count, price);
+        const price = 5000;
+        const res = db.buyRaffleTicket(userId, count, price);
 
-                if (res.success) {
-                    return message.reply(`🎟️ **Sukses!** Kamu membeli **${count}** tiket raffle seharga Rp ${(count * price).toLocaleString('id-ID')}.`);
-                } else {
-                    return message.reply(`❌ **Gagal:** ${res.error}`);
-                }
-            }
-
-            if (sub === 'info') {
-                const data = db.getRaffleData();
-                const userTickets = db.prepare("SELECT ticket_count FROM raffle_participants WHERE user_id = ?").get(userId)?.ticket_count || 0;
-
-                return message.reply(`🎟️ **RAFFLE INFO** 🎟️\n💰 **Total Pot:** Rp ${data.pot.toLocaleString('id-ID')}\n🎫 **Total Tiket:** ${data.totalTickets}\n👤 **Tiket Kamu:** ${userTickets}\n\n*Beli tiket dengan \`!raffle buy <jumlah>\` (Rp 5.000/tiket)*`);
-            }
-
-            if (sub === 'draw') {
-                // Admin check (You might want to replace this with a real admin check)
-                // For now, let's assume anyone can draw for testing, or check specific ID
-                // if (userId !== 'YOUR_ADMIN_ID') return; 
-
-                const data = db.getRaffleData();
-                if (data.totalTickets === 0) return message.reply('❌ Belum ada partisipan raffle.');
-
-                const winnerId = db.drawRaffleWinner();
-                if (winnerId) {
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(data.pot, winnerId);
-                    db.resetRaffle();
-
-                    return message.channel.send(`🎉 **RAFFLE DRAW** 🎉\nSelamat kepada <@${winnerId}> yang memenangkan POT sebesar **Rp ${data.pot.toLocaleString('id-ID')}**! 🥳💸`);
-                } else {
-                    return message.reply('❌ Terjadi kesalahan saat mengundi.');
-                }
-            }
-
-            return message.reply('❌ Command: `!raffle buy <n>`, `!raffle info`, `!raffle draw`');
+        if (res.success) {
+            return message.reply(`�️ **Sukses!** Kamu membeli **${count}** tiket raffle seharga Rp ${(count * price).toLocaleString('id-ID')}.`);
+        } else {
+            return message.reply(`❌ **Gagal:** ${res.error}`);
         }
+    }
+
+    if (sub === 'info') {
+        const data = db.getRaffleData();
+        const userTickets = db.prepare("SELECT ticket_count FROM raffle_participants WHERE user_id = ?").get(userId)?.ticket_count || 0;
+
+        return message.reply(`🎟️ **RAFFLE INFO** 🎟️\n💰 **Total Pot:** Rp ${data.pot.toLocaleString('id-ID')}\n🎫 **Total Tiket:** ${data.totalTickets}\n👤 **Tiket Kamu:** ${userTickets}\n\n*Beli tiket dengan \`!raffle buy <jumlah>\` (Rp 5.000/tiket)*`);
+    }
+
+    if (sub === 'draw') {
+        // Admin check (You might want to replace this with a real admin check)
+        // For now, let's assume anyone can draw for testing, or check specific ID
+        // if (userId !== 'YOUR_ADMIN_ID') return; 
+
+        const data = db.getRaffleData();
+        if (data.totalTickets === 0) return message.reply('❌ Belum ada partisipan raffle.');
+
+        const winnerId = db.drawRaffleWinner();
+        if (winnerId) {
+            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(data.pot, winnerId);
+            db.resetRaffle();
+
+            return message.channel.send(`🎉 **RAFFLE DRAW** 🎉\nSelamat kepada <@${winnerId}> yang memenangkan POT sebesar **Rp ${data.pot.toLocaleString('id-ID')}**! 🥳💸`);
+        } else {
+            return message.reply('❌ Terjadi kesalahan saat mengundi.');
+        }
+    }
+
+    return message.reply('❌ Command: `!raffle buy <n>`, `!raffle info`, `!raffle draw`');
+}
     }
 };

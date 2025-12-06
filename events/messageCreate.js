@@ -1,4 +1,4 @@
-const { Events } = require('discord.js');
+const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('../database.js');
 const gameHandler = require('../handlers/gameHandler.js');
 const gamblingHandler = require('../handlers/gamblingHandler.js');
@@ -181,28 +181,78 @@ module.exports = {
             return;
         }
 
+        // !daily
+        if (content === '!daily') {
+            const now = Date.now();
+            const cooldown = 24 * 60 * 60 * 1000; // 24 Hours
+            const lastDaily = db.getCooldown(userId, 'daily');
+
+            if (lastDaily && (now - lastDaily) < cooldown) {
+                const remaining = cooldown - (now - lastDaily);
+                const hours = Math.floor(remaining / (60 * 60 * 1000));
+                const minutes = Math.floor((remaining % (60 * 60 * 1000)) / (60 * 1000));
+                return message.reply(`⏳ **Sabar!** Kamu bisa ambil daily lagi dalam ${hours} jam ${minutes} menit.`);
+            }
+
+            let reward = 5000; // Base Reward
+            let bonusMsg = '';
+
+            // Check Khodam Effect
+            const khodamHandler = require('../handlers/khodamHandler.js');
+            const khodam = khodamHandler.getKhodamEffect(userId);
+            if (khodam) {
+                const parts = khodam.effect.split('_');
+                if (parts[0] === 'daily' || khodam.effect === 'all_20') {
+                    const val = (khodam.effect === 'all_20') ? 20 : parseInt(parts[1]);
+                    const bonus = Math.floor(reward * (val / 100));
+                    reward += bonus;
+                    bonusMsg = `\n👻 **Khodam Bonus:** +Rp ${bonus.toLocaleString('id-ID')} (${khodam.name})`;
+                }
+            }
+
+            db.addSaldo(userId, reward);
+            db.setCooldown(userId, 'daily', now);
+            return message.reply(`💰 **DAILY REWARD**\nKamu menerima **Rp ${reward.toLocaleString('id-ID')}**!${bonusMsg}`);
+        }
+
         // !minta (Beg)
-        if (content === '!minta') {
+        if (content === '!minta' || content === '!beg') {
             const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
             const now = Date.now();
 
             if (!client.begCooldowns) client.begCooldowns = new Map();
 
             const lastBeg = client.begCooldowns.get(userId) || 0;
-            const cooldown = 2 * 60 * 60 * 1000; // 2 Jam
+            const cooldown = 5 * 60 * 1000; // 5 Menit (Updated from 2 hours for better gameplay loop)
 
             if (now - lastBeg < cooldown) {
-                return message.reply(`🛑 **Jangan ngemis terus!**\nCoba lagi <t:${Math.ceil((lastBeg + cooldown) / 1000)}:R>.`);
+                const remaining = Math.ceil((cooldown - (now - lastBeg)) / 1000);
+                return message.reply(`⏳ **Jangan ngemis terus!** Tunggu ${remaining} detik lagi.`);
             }
 
             // RNG Success
             const success = Math.random() > 0.3; // 70% Success
             if (success) {
-                const amount = Math.floor(Math.random() * 1500) + 500; // 500 - 2000
+                let amount = Math.floor(Math.random() * 1500) + 500; // 500 - 2000
+                let bonusMsg = '';
+
+                // Check Khodam Effect
+                const khodamHandler = require('../handlers/khodamHandler.js');
+                const khodam = khodamHandler.getKhodamEffect(userId);
+                if (khodam) {
+                    const parts = khodam.effect.split('_');
+                    if (parts[0] === 'daily' || khodam.effect === 'all_20') {
+                        const val = (khodam.effect === 'all_20') ? 20 : parseInt(parts[1]);
+                        const bonus = Math.floor(amount * (val / 100));
+                        amount += bonus;
+                        bonusMsg = ` (+Rp ${bonus} dari Khodam)`;
+                    }
+                }
+
                 if (!user) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(userId);
                 db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
                 client.begCooldowns.set(userId, now);
-                return message.reply(`🥺 **Dikasih kasihan...**\nKamu dapet Rp ${amount.toLocaleString('id-ID')}.`);
+                return message.reply(`🥺 **Dikasih kasihan...**\nKamu dapet Rp ${amount.toLocaleString('id-ID')}${bonusMsg}.`);
             } else {
                 client.begCooldowns.set(userId, now);
                 const fails = [

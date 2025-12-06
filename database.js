@@ -377,4 +377,33 @@ db.deleteKhodam = (userId) => {
     } catch (e) { return false; }
 };
 
+// COOLDOWN SYSTEM - Added for daily/weekly features
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_cooldowns (
+        user_id TEXT NOT NULL,
+        action_type TEXT NOT NULL,
+        last_used INTEGER NOT NULL,
+        PRIMARY KEY (user_id, action_type)
+    )
+`);
+
+db.getCooldown = (userId, actionType) => {
+    try {
+        const row = db.prepare('SELECT last_used FROM user_cooldowns WHERE user_id = ? AND action_type = ?').get(userId, actionType);
+        return row ? row.last_used : null;
+    } catch (e) { return null; }
+};
+
+db.setCooldown = (userId, actionType, timestamp = null) => {
+    try {
+        const time = timestamp || Date.now();
+        db.prepare(`
+            INSERT INTO user_cooldowns (user_id, action_type, last_used) VALUES (?, ?, ?)
+            ON CONFLICT(user_id, action_type) DO UPDATE SET last_used = ?
+        `).run(userId, actionType, time, time);
+        return true;
+    } catch (e) { return false; }
+};
+
 module.exports = db;
+
