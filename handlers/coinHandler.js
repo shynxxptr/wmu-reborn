@@ -9,7 +9,9 @@ module.exports = {
         if (command === '!coin') {
             const user = db.prepare('SELECT coin_ujang FROM user_economy WHERE user_id = ?').get(userId);
             const coin = user ? user.coin_ujang : 0;
-            return message.reply(`🪙 **Coin Ujang:** ${coin} Coin`);
+            const supply = db.getCoinSupply();
+
+            return message.reply(`🪙 **Coin Ujang:** ${coin} Coin\n📦 **Stok Global:** ${supply} Coin`);
         }
 
         // !tukar <jumlah> (Tukar Saldo ke Coin)
@@ -23,6 +25,18 @@ module.exports = {
             } else {
                 return message.reply(`❌ **Gagal:** ${res.error}`);
             }
+        }
+
+        // !restockcoin <jumlah> (Admin Only)
+        if (command === '!restockcoin') {
+            if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin Only!');
+
+            const amount = parseInt(args[1]);
+            if (isNaN(amount) || amount <= 0) return message.reply('❌ Format: `!restockcoin <jumlah>`');
+
+            db.restockCoin(amount);
+            const newSupply = db.getCoinSupply();
+            return message.reply(`✅ **Restock Berhasil!**\nStok sekarang: **${newSupply} Coin**.`);
         }
 
         // !shoprole (Menu Harga)

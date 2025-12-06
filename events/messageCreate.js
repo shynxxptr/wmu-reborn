@@ -129,16 +129,56 @@ module.exports = {
                 return message.reply('💸 **Uang tidak cukup!** Kerja dulu sana.');
             }
 
-            // Transaksi
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
+            // Confirmation Embed
+            const confirmEmbed = new EmbedBuilder()
+                .setTitle('💸 Konfirmasi Transfer')
+                .setDescription(`Kamu yakin mau kirim **Rp ${amount.toLocaleString('id-ID')}** ke ${targetUser}?`)
+                .setColor('#ffff00');
 
-            // Cek penerima, jika belum ada buat baru
-            const receiver = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(targetUser.id);
-            if (!receiver) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(targetUser.id);
+            const row = new ActionRowBuilder()
+                .addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('confirm_transfer')
+                        .setLabel('YA, Kirim!')
+                        .setStyle(ButtonStyle.Success),
+                    new ButtonBuilder()
+                        .setCustomId('cancel_transfer')
+                        .setLabel('Batal')
+                        .setStyle(ButtonStyle.Danger)
+                );
 
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, targetUser.id);
+            const reply = await message.reply({ embeds: [confirmEmbed], components: [row] });
 
-            return message.reply(`✅ **Transfer Berhasil!**\nKamu mengirim Rp ${amount.toLocaleString('id-ID')} ke ${targetUser}.`);
+            const filter = i => i.user.id === userId;
+            const collector = reply.createMessageComponentCollector({ filter, time: 15000 });
+
+            collector.on('collect', async i => {
+                if (i.customId === 'confirm_transfer') {
+                    // Re-check balance just in case
+                    const currentSender = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+                    if (!currentSender || currentSender.uang_jajan < amount) {
+                        return i.update({ content: '❌ Uang sudah tidak cukup!', embeds: [], components: [] });
+                    }
+
+                    // Execute Transfer
+                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
+
+                    const receiver = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(targetUser.id);
+                    if (!receiver) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(targetUser.id);
+                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, targetUser.id);
+
+                    await i.update({ content: `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${amount.toLocaleString('id-ID')} ke ${targetUser}.`, embeds: [], components: [] });
+                } else {
+                    await i.update({ content: '❌ **Transfer Dibatalkan.**', embeds: [], components: [] });
+                }
+            });
+
+            collector.on('end', collected => {
+                if (collected.size === 0) {
+                    reply.edit({ content: '⏱️ **Waktu Habis!** Transfer dibatalkan.', embeds: [], components: [] });
+                }
+            });
+            return;
         }
 
         // !minta (Beg)
@@ -207,7 +247,15 @@ module.exports = {
             await crashHandler.handleCrash(message, command, args);
         }
 
-        // --- 8. COIN UJANG & SHOP ---
+        // --- 8. BLACKJACK ---
+        if (content.startsWith('!bj') || content.startsWith('!blackjack')) {
+            const bjHandler = require('../handlers/blackjackHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await bjHandler.handleBlackjack(message, command, args);
+        }
+
+        // --- 9. COIN UJANG & SHOP ---
         if (content.startsWith('!coin') || content.startsWith('!tukar') || content.startsWith('!shoprole') || content.startsWith('!belirole')) {
             const args = content.split(' ');
             const command = args[0];

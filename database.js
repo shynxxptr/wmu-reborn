@@ -286,4 +286,62 @@ db.buyCustomRoleTicket = (userId, durationCode) => {
     }
 };
 
+// 12. User Effects (Black Market)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_effects (
+        user_id TEXT,
+        effect_type TEXT,
+        expires_at INTEGER,
+        PRIMARY KEY (user_id, effect_type)
+    )
+`);
+
+// Helper Methods for Effects
+db.addEffect = (userId, type, durationMs) => {
+    try {
+        const expiresAt = Date.now() + durationMs;
+        db.prepare(`
+            INSERT INTO user_effects (user_id, effect_type, expires_at) VALUES (?, ?, ?)
+            ON CONFLICT(user_id, effect_type) DO UPDATE SET expires_at = ?
+        `).run(userId, type, expiresAt, expiresAt);
+        return true;
+    } catch (e) { return false; }
+};
+
+db.getEffect = (userId, type) => {
+    try {
+        const effect = db.prepare('SELECT expires_at FROM user_effects WHERE user_id = ? AND effect_type = ?').get(userId, type);
+        if (!effect) return null;
+
+        if (Date.now() > effect.expires_at) {
+            db.prepare('DELETE FROM user_effects WHERE user_id = ? AND effect_type = ?').run(userId, type);
+            return null;
+        }
+        return effect;
+    } catch (e) { return null; }
+};
+
+// 13. System Variable Helpers (Generic)
+db.getSystemVar = (key, defaultValue) => {
+    try {
+        const res = db.prepare("SELECT value FROM system_vars WHERE key = ?").get(key);
+        return res ? res.value : defaultValue;
+    } catch (e) { return defaultValue; }
+};
+
+db.setSystemVar = (key, value) => {
+    try {
+        db.prepare("INSERT INTO system_vars (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = ?").run(key, value, value);
+        return true;
+    } catch (e) { return false; }
+};
+
+// Initialize Black Market Defaults
+try {
+    if (db.getSystemVar('bm_start_hour', -1) === -1) db.setSystemVar('bm_start_hour', 0);
+    if (db.getSystemVar('bm_end_hour', -1) === -1) db.setSystemVar('bm_end_hour', 5);
+    if (db.getSystemVar('price_jimat_judi', -1) === -1) db.setSystemVar('price_jimat_judi', 5);
+    if (db.getSystemVar('price_pelicin', -1) === -1) db.setSystemVar('price_pelicin', 3);
+} catch (e) { }
+
 module.exports = db;
