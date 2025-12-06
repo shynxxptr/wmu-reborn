@@ -344,4 +344,37 @@ try {
     if (db.getSystemVar('price_pelicin', -1) === -1) db.setSystemVar('price_pelicin', 3);
 } catch (e) { }
 
+// 14. Khodam System
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_khodams (
+        user_id TEXT PRIMARY KEY,
+        khodam_name TEXT,
+        rarity TEXT,
+        acquired_at INTEGER
+    )
+`);
+
+db.setKhodam = (userId, name, rarity) => {
+    try {
+        db.prepare(`
+            INSERT INTO user_khodams (user_id, khodam_name, rarity, acquired_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET khodam_name = ?, rarity = ?, acquired_at = ?
+        `).run(userId, name, rarity, Date.now(), name, rarity, Date.now());
+        return true;
+    } catch (e) { return false; }
+};
+
+db.getKhodam = (userId) => {
+    try {
+        return db.prepare('SELECT * FROM user_khodams WHERE user_id = ?').get(userId);
+    } catch (e) { return null; }
+};
+
+db.deleteKhodam = (userId) => {
+    try {
+        db.prepare('DELETE FROM user_khodams WHERE user_id = ?').run(userId);
+        return true;
+    } catch (e) { return false; }
+};
+
 module.exports = db;
