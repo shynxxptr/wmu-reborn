@@ -138,4 +138,152 @@ try {
 }
 
 console.log('✅ [DATABASE] Siap & Terhubung.');
+// 9. System Variables (Global Jackpot, etc.)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS system_vars (
+        key TEXT PRIMARY KEY,
+        value INTEGER DEFAULT 0
+    )
+`);
+
+// Initialize Jackpot if not exists
+try {
+    const checkJackpot = db.prepare("SELECT value FROM system_vars WHERE key = 'global_jackpot'").get();
+    if (!checkJackpot) {
+        db.prepare("INSERT INTO system_vars (key, value) VALUES ('global_jackpot', 0)").run();
+    }
+} catch (e) {
+    console.error("Error initializing jackpot:", e);
+}
+
+// Helper Methods for Jackpot
+db.addJackpot = (amount) => {
+    try {
+        db.prepare("UPDATE system_vars SET value = value + ? WHERE key = 'global_jackpot'").run(amount);
+    } catch (e) { }
+};
+
+db.getJackpot = () => {
+    try {
+        const res = db.prepare("SELECT value FROM system_vars WHERE key = 'global_jackpot'").get();
+        return res ? res.value : 0;
+    } catch (e) { return 0; }
+};
+
+db.resetJackpot = () => {
+    try {
+        db.prepare("UPDATE system_vars SET value = 0 WHERE key = 'global_jackpot'").run();
+    } catch (e) { }
+};
+
+// 10. Raffle System
+db.exec(`
+    CREATE TABLE IF NOT EXISTS raffle_participants (
+        user_id TEXT PRIMARY KEY,
+        ticket_count INTEGER DEFAULT 0
+    )
+`);
+
+// Helper Methods for Raffle
+db.buyRaffleTicket = (userId, count, price) => {
+    try {
+        const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+        const totalCost = count * price;
+
+        if (!user || user.uang_jajan < totalCost) return { success: false, error: 'Uang tidak cukup' };
+
+        db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(totalCost, userId);
+
+        // Add to pot
+        db.prepare("INSERT OR IGNORE INTO system_vars (key, value) VALUES ('raffle_pot', 0)").run();
+        db.prepare("UPDATE system_vars SET value = value + ? WHERE key = 'raffle_pot'").run(totalCost);
+
+        // Add tickets
+        db.prepare('INSERT INTO raffle_participants (user_id, ticket_count) VALUES (?, ?) ON CONFLICT(user_id) DO UPDATE SET ticket_count = ticket_count + ?').run(userId, count, count);
+
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Database error' };
+    }
+};
+
+db.getRaffleData = () => {
+    try {
+        const pot = db.prepare("SELECT value FROM system_vars WHERE key = 'raffle_pot'").get()?.value || 0;
+        const totalTickets = db.prepare("SELECT SUM(ticket_count) as total FROM raffle_participants").get()?.total || 0;
+        return { pot, totalTickets };
+    } catch (e) { return { pot: 0, totalTickets: 0 }; }
+};
+
+db.drawRaffleWinner = () => {
+    try {
+        const participants = db.prepare("SELECT * FROM raffle_participants").all();
+        if (participants.length === 0) return null;
+
+        const totalTickets = participants.reduce((sum, p) => sum + p.ticket_count, 0);
+        let random = Math.floor(Math.random() * totalTickets);
+
+        for (const p of participants) {
+            random -= p.ticket_count;
+            if (random < 0) return p.user_id;
+        }
+        return participants[participants.length - 1].user_id;
+    } catch (e) { return null; }
+};
+
+db.resetRaffle = () => {
+    try {
+        db.prepare("DELETE FROM raffle_participants").run();
+        db.prepare("UPDATE system_vars SET value = 0 WHERE key = 'raffle_pot'").run();
+    } catch (e) { }
+};
+
+// 11. Coin Ujang Migration
+try { db.prepare('ALTER TABLE user_economy ADD COLUMN coin_ujang INTEGER DEFAULT 0').run(); } catch (e) { }
+
+// Helper Methods for Coin Ujang
+db.exchangeCoin = (userId, amount) => {
+    try {
+        const rate = 10000000; // 1 Coin = 10 Juta
+        const cost = amount * rate;
+
+        const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+        if (!user || user.uang_jajan < cost) return { success: false, error: 'Saldo tidak cukup' };
+
+        db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ?, coin_ujang = coin_ujang + ? WHERE user_id = ?').run(cost, amount, userId);
+        return { success: true };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Database error' };
+    }
+};
+
+db.buyCustomRoleTicket = (userId, durationCode) => {
+    // Duration Code: '1d', '3d', '7d', '10d', '30d'
+    const prices = { '1d': 1, '3d': 3, '7d': 5, '10d': 10, '30d': 20 };
+    const price = prices[durationCode];
+
+    if (!price) return { success: false, error: 'Durasi tidak valid' };
+
+    try {
+        const user = db.prepare('SELECT coin_ujang FROM user_economy WHERE user_id = ?').get(userId);
+        if (!user || user.coin_ujang < price) return { success: false, error: 'Coin Ujang tidak cukup' };
+
+        // Deduct Coin
+        db.prepare('UPDATE user_economy SET coin_ujang = coin_ujang - ? WHERE user_id = ?').run(price, userId);
+
+        // Add to Inventory
+        db.prepare(`
+            INSERT INTO inventaris (user_id, jenis_tiket, jumlah) VALUES (?, ?, 1)
+            ON CONFLICT(user_id, jenis_tiket) DO UPDATE SET jumlah = jumlah + 1
+        `).run(userId, durationCode);
+
+        return { success: true, price };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Database error' };
+    }
+};
+
 module.exports = db;

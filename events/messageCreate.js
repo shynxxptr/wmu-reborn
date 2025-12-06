@@ -2,6 +2,7 @@ const { Events } = require('discord.js');
 const db = require('../database.js');
 const gameHandler = require('../handlers/gameHandler.js');
 const gamblingHandler = require('../handlers/gamblingHandler.js');
+const coinHandler = require('../handlers/coinHandler.js');
 
 // KONFIGURASI JOB
 const JOBS = {
@@ -176,10 +177,33 @@ module.exports = {
         // --- 4. GAMBLING ---
 
         // --- 4. GAMBLING ---
-        if (content.startsWith('!coinflip') || content.startsWith('!cf') || content.startsWith('!slots') || content.startsWith('!doaujang')) {
+        if (content.startsWith('!coinflip') || content.startsWith('!cf') || content.startsWith('!slots') || content.startsWith('!doaujang') || content.startsWith('!raffle') || content.startsWith('!bs') || content.startsWith('!bigslot') || content.startsWith('!math') || content.startsWith('!duelslot') || content.startsWith('!accept')) {
             const args = content.split(' ');
             const command = args[0];
             await gamblingHandler.handleGambling(message, command, args);
+        }
+
+        // --- 5. UNO GAME ---
+        if (content.startsWith('!uno')) {
+            const unoHandler = require('../handlers/unoHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await unoHandler.handleUno(message, command, args);
+        }
+
+        // --- 6. MINESWEEPER ---
+        if (content.startsWith('!bom') || content.startsWith('!mines')) {
+            const minesHandler = require('../handlers/minesweeperHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await minesHandler.handleMines(message, command, args);
+        }
+
+        // --- 7. COIN UJANG & SHOP ---
+        if (content.startsWith('!coin') || content.startsWith('!tukar') || content.startsWith('!shoprole') || content.startsWith('!belirole')) {
+            const args = content.split(' ');
+            const command = args[0];
+            await coinHandler.handleCoin(message, command, args);
         }
 
         // !palak <@user> <amount>
