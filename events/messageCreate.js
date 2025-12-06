@@ -199,7 +199,15 @@ module.exports = {
             await minesHandler.handleMines(message, command, args);
         }
 
-        // --- 7. COIN UJANG & SHOP ---
+        // --- 7. CRASH (SAHAM) ---
+        if (content.startsWith('!saham') || content.startsWith('!crash')) {
+            const crashHandler = require('../handlers/crashHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await crashHandler.handleCrash(message, command, args);
+        }
+
+        // --- 8. COIN UJANG & SHOP ---
         if (content.startsWith('!coin') || content.startsWith('!tukar') || content.startsWith('!shoprole') || content.startsWith('!belirole')) {
             const args = content.split(' ');
             const command = args[0];
@@ -266,57 +274,138 @@ module.exports = {
         }
 
         // --- 6. HELP COMMAND ---
-        if (content === '!kantinhelp') {
-            const { EmbedBuilder } = require('discord.js');
-            const embed = new EmbedBuilder()
-                .setTitle('📚 KANTIN SEKOLAH - HELP MENU')
-                .setColor('#00AAFF')
-                .setDescription('Berikut adalah daftar command yang tersedia di Kantin Sekolah:')
-                .addFields(
-                    {
-                        name: '🏪 KANTIN & WARUNG',
-                        value:
-                            '`/kantin` - Buka menu makanan & minuman (Jual Korek juga!).\n' +
-                            '`/warung` - Warung Rahasia (Jual Rokok).\n' +
-                            '`/makan` - Makan/Minum/Merokok dari tas.'
-                    },
-                    {
-                        name: '📊 STATUS & SURVIVAL',
-                        value:
-                            '`/cekstatus` - Cek Lapar, Haus, Stress.\n' +
-                            '• **Kerja** nambah Lapar, Haus, Stress.\n' +
-                            '• **Makan/Minum** kurangi Lapar/Haus.\n' +
-                            '• **Merokok** kurangi Stress (Butuh Korek).'
-                    },
-                    {
-                        name: '💰 EKONOMI (Cari Uang)',
-                        value:
-                            '`!cekdompet` - Cek saldo Uang Jajan.\n' +
-                            '`!bantujualan` - Bantu Mang Ujang (Rp 5k-10k).\n' +
-                            '`!nyapulapangan` - Sapu lapangan (Rp 3k-7k).\n' +
-                            '`!pungutsampah` - Pungut sampah (Rp 2k-5k).'
-                    },
-                    {
-                        name: '🤝 SOSIAL',
-                        value:
-                            '`!beri @user <jumlah>` - Transfer uang ke teman.\n' +
-                            '`!minta` - Ngemis ke orang lewat (Hoki-hokian).\n' +
-                            '`!palak @user <jumlah>` - Ajak duel Batu Gunting Kertas (Winner takes all).'
-                    },
-                    {
-                        name: '🎲 GAME & JUDI',
-                        value:
-                            '`!coinflip <jumlah> <h/t>` - Judi koin (x2).\n' +
-                            '`!slots <jumlah>` - Judi slot (x2 / x5 Jackpot).'
-                    },
-                    {
-                        name: '👮 ADMIN ONLY',
-                        value: '`!tambahsaldo @user <jumlah>` - Tambah saldo member.'
-                    }
-                )
-                .setFooter({ text: 'Gunakan dengan bijak ya, Sobat Sekolah!' });
+        if (content === '!kantin help' || content === '!kantinhelp' || content === '!help') {
+            const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
-            return message.reply({ embeds: [embed] });
+            const pages = [
+                // PAGE 1: KANTIN & EKONOMI
+                new EmbedBuilder()
+                    .setTitle('📚 KANTIN SEKOLAH - MENU UTAMA (1/3)')
+                    .setColor('#00AAFF')
+                    .setDescription('Selamat datang di Warung Mang Ujang! Berikut panduan lengkapnya:')
+                    .addFields(
+                        {
+                            name: '🏪 KANTIN & WARUNG',
+                            value:
+                                '`/kantin` - Buka menu makanan & minuman.\n' +
+                                '`/warung` - Warung Rahasia (Rokok & Alkohol).\n' +
+                                '`/makan` - Konsumsi item dari tas.'
+                        },
+                        {
+                            name: '💰 CARI UANG',
+                            value:
+                                '`!cekdompet` - Cek saldo.\n' +
+                                '`!bantujualan` - Kerja santai (Rp 5k-10k).\n' +
+                                '`!nyapulapangan` - Kerja sedang (Rp 3k-7k).\n' +
+                                '`!pungutsampah` - Kerja ringan (Rp 2k-5k).'
+                        },
+                        {
+                            name: '🤝 SOSIAL',
+                            value:
+                                '`!beri @user <jumlah>` - Transfer uang.\n' +
+                                '`!minta` - Ngemis (Hoki-hokian).\n' +
+                                '`!palak @user <jumlah>` - Duel Batu Gunting Kertas.'
+                        }
+                    )
+                    .setFooter({ text: 'Halaman 1 dari 3 • Klik tombol di bawah untuk ganti halaman.' }),
+
+                // PAGE 2: GAMBLING & MINIGAMES
+                new EmbedBuilder()
+                    .setTitle('🎰 GAME & JUDI (2/3)')
+                    .setColor('#FFA500')
+                    .setDescription('Mau kaya mendadak atau miskin mendadak? Di sini tempatnya!')
+                    .addFields(
+                        {
+                            name: '🎲 CLASSIC',
+                            value:
+                                '`!cf <bet> <h/t>` - Coinflip (x2).\n' +
+                                '`!slots <bet>` - Slot Machine (x2 / x5).\n' +
+                                '`!math <bet>` - Judi Matematika (Brain Rot).'
+                        },
+                        {
+                            name: '🔥 HIGH STAKES',
+                            value:
+                                '`!bs <bet>` - Gates of Mang Ujang (Slot 6x5).\n' +
+                                '`!bom <bet>` - Tebak Bom / Minesweeper.\n' +
+                                '`!saham <bet>` - Saham Gorengan (Crash).'
+                        },
+                        {
+                            name: '⚔️ PVP & MULTIPLAYER',
+                            value:
+                                '`!duelslot @user <bet>` - Duel Slot 1vs1.\n' +
+                                '`!uno create <prize>` - Bikin Room UNO Berduit.\n' +
+                                '`!raffle buy <n>` - Beli tiket undian server.'
+                        }
+                    )
+                    .setFooter({ text: 'Halaman 2 dari 3 • Gunakan "all" untuk all-in (Contoh: !cf all h).' }),
+
+                // PAGE 3: COIN UJANG & LAINNYA
+                new EmbedBuilder()
+                    .setTitle('💎 COIN UJANG & FITUR LAIN (3/3)')
+                    .setColor('#A020F0')
+                    .setDescription('Mata uang premium untuk sultan.')
+                    .addFields(
+                        {
+                            name: '🪙 COIN UJANG',
+                            value:
+                                '`!tukar <jumlah>` - Tukar Saldo ke Coin (1 Coin = 10jt).\n' +
+                                '`!coin` - Cek saldo Coin Ujang.\n' +
+                                '`!shoprole` - Beli Custom Role pakai Coin.'
+                        },
+                        {
+                            name: '📊 STATUS KARAKTER',
+                            value:
+                                '`/cekstatus` - Cek Lapar, Haus, Stress.\n' +
+                                '*Tips: Jangan sampai stat 100% atau gak bisa kerja!*'
+                        },
+                        {
+                            name: '👮 ADMIN',
+                            value: '`!tambahsaldo @user <jumlah>` - Cheat money (Admin Only).'
+                        }
+                    )
+                    .setFooter({ text: 'Halaman 3 dari 3 • Bot by Antigravity' })
+            ];
+
+            const getRow = (pageIndex) => {
+                return new ActionRowBuilder().addComponents(
+                    new ButtonBuilder()
+                        .setCustomId('help_prev')
+                        .setLabel('⬅️ Sebelumnya')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(pageIndex === 0),
+                    new ButtonBuilder()
+                        .setCustomId('help_next')
+                        .setLabel('Selanjutnya ➡️')
+                        .setStyle(ButtonStyle.Primary)
+                        .setDisabled(pageIndex === pages.length - 1)
+                );
+            };
+
+            const msg = await message.reply({ embeds: [pages[0]], components: [getRow(0)] });
+
+            // Collector
+            const collector = msg.createMessageComponentCollector({ componentType: ComponentType.Button, time: 60000 });
+            let currentPage = 0;
+
+            collector.on('collect', async i => {
+                if (i.user.id !== message.author.id) {
+                    return i.reply({ content: '❌ Bikin menu sendiri dong!', flags: [MessageFlags.Ephemeral] });
+                }
+
+                if (i.customId === 'help_prev') currentPage--;
+                else if (i.customId === 'help_next') currentPage++;
+
+                await i.update({ embeds: [pages[currentPage]], components: [getRow(currentPage)] });
+            });
+
+            collector.on('end', () => {
+                const disabledRow = new ActionRowBuilder().addComponents(
+                    new ButtonBuilder().setCustomId('help_prev').setLabel('⬅️').setStyle(ButtonStyle.Secondary).setDisabled(true),
+                    new ButtonBuilder().setCustomId('help_next').setLabel('➡️').setStyle(ButtonStyle.Secondary).setDisabled(true)
+                );
+                msg.edit({ components: [disabledRow] }).catch(() => { });
+            });
+            return;
         }
     },
 };
