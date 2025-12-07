@@ -6,11 +6,11 @@ const { updateLiveReport } = require('../handlers/adminHandler.js'); // Import L
 const { voiceChannelId } = require('../config.json'); // Import ID Voice
 
 // Definisi Durasi (Detik)
-const TIME_24H = 86400; 
-const TIME_12H = 43200; 
-const TIME_1H  = 3600;  
-const TIME_30M = 1800;  
-const TIME_5M  = 300;   
+const TIME_24H = 86400;
+const TIME_12H = 43200;
+const TIME_1H = 3600;
+const TIME_30M = 1800;
+const TIME_5M = 300;
 
 module.exports = {
     name: Events.ClientReady,
@@ -45,14 +45,14 @@ module.exports = {
         // 3. SCHEDULER (Cek Setiap 1 Menit)
         setInterval(async () => {
             const now = Math.floor(Date.now() / 1000);
-            
+
             // Ambil semua role aktif
             const activeRoles = db.prepare('SELECT * FROM role_aktif').all();
 
             for (const r of activeRoles) {
                 try {
                     const guild = await client.guilds.fetch(r.guild_id).catch(() => null);
-                    if (!guild) continue; 
+                    if (!guild) continue;
 
                     // Cek Role di Discord (Self-Healing)
                     const discordRole = await guild.roles.fetch(r.role_id).catch(() => null);
@@ -108,11 +108,16 @@ module.exports = {
 
                     // C. EXPIRED HANDLING (Waktu Habis)
                     if (sisaWaktu <= 0) {
-                        await discordRole.delete('Role Expired (Auto)');
-                        
+                        try {
+                            await discordRole.delete('Role Expired (Auto)');
+                        } catch (e) {
+                            console.error(`⚠️ [AUTO-CLEAN] Gagal hapus role ${roleName} (${r.role_id}): ${e.message}`);
+                            await sendLog(client, r.guild_id, '⚠️ Role Delete Failed', `Bot tidak punya izin menghapus role: ${roleName}\nHarap hapus manual.`, 'Red');
+                        }
+
                         db.prepare('DELETE FROM role_aktif WHERE id = ?').run(r.id);
                         db.prepare('DELETE FROM role_shares WHERE role_id = ?').run(r.role_id);
-                        
+
                         await sendLog(client, r.guild_id, '⏰ Role Expired', `Role: ${roleName}\nUser ID: ${r.user_id}`, 'Grey');
                         await sendDM(client, r.user_id, `⏰ **Role Expired**\nMasa aktif role **"${roleName}"** telah habis dan dihapus otomatis.`);
                     }

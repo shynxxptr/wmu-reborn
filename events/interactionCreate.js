@@ -5,6 +5,9 @@ const adminHandler = require('../handlers/adminHandler.js');
 const shopHandler = require('../handlers/shopHandler.js');
 const kantinHandler = require('../handlers/kantinHandler.js');
 const gameHandler = require('../handlers/gameHandler.js');
+const crashHandler = require('../handlers/crashHandler.js');
+const minesweeperHandler = require('../handlers/minesweeperHandler.js');
+const unoHandler = require('../handlers/unoHandler.js');
 const db = require('../database.js');
 
 module.exports = {
@@ -135,6 +138,24 @@ module.exports = {
             // F. GAME HANDLER (PALAK / RPS)
             if (id.startsWith('palak_') || id.startsWith('rps_')) {
                 await gameHandler.handleButton(interaction);
+                return;
+            }
+
+            // G. CRASH / SAHAM HANDLER
+            if (id.startsWith('crash_')) {
+                await crashHandler.handleInteraction(interaction);
+                return;
+            }
+
+            // H. MINESWEEPER HANDLER
+            if (id.startsWith('mine_')) {
+                await minesweeperHandler.handleInteraction(interaction);
+                return;
+            }
+
+            // I. UNO HANDLER
+            if (id.startsWith('uno_')) {
+                await unoHandler.handleInteraction(interaction);
                 return;
             }
 

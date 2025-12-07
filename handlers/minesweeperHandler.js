@@ -7,16 +7,15 @@ const db = require('../database.js');
 const activeMines = new Map();
 
 // Configuration
-const GRID_SIZE = 25; // 5x5
-const BOMB_COUNT = 5; // Fixed 5 bombs for now (can be dynamic later)
+const GRID_SIZE = 20; // 5x4 Grid to fit Cashout button in 5th row
+const BOMB_COUNT = 5;
 
 // Multiplier Calculation (Simple exponential or linear based on odds)
 // Odds = Total / Safe_Remaining
 const calculateNextMultiplier = (currentMult, safeRemaining, totalRemaining) => {
     // Standard Mines formula: Multiplier * (Total_Spots / Safe_Spots)
-    // 25 spots, 5 bombs -> 20 safe.
-    // 1st click: 25/20 = 1.25x
-    // 2nd click: 24/19 = 1.26x ...
+    // 20 spots, 5 bombs -> 15 safe.
+    // 1st click: 20/15 = 1.33x
     // We apply a small house edge (e.g., 5%)
     const rawOdds = totalRemaining / safeRemaining;
     const houseEdge = 0.95;
@@ -62,9 +61,9 @@ module.exports = {
 
         // Create UI
         const rows = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 4; i++) { // 4 Rows
             const row = new ActionRowBuilder();
-            for (let j = 0; j < 5; j++) {
+            for (let j = 0; j < 5; j++) { // 5 Cols
                 const idx = i * 5 + j;
                 row.addComponents(
                     new ButtonBuilder()
@@ -76,7 +75,7 @@ module.exports = {
             rows.push(row);
         }
 
-        // Add Cashout Button
+        // Add Cashout Button in 5th Row
         const controlRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('mine_cashout')
@@ -177,9 +176,9 @@ module.exports = {
 
     updateButtons(game) {
         const rows = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 4; i++) { // 4 Rows
             const row = new ActionRowBuilder();
-            for (let j = 0; j < 5; j++) {
+            for (let j = 0; j < 5; j++) { // 5 Cols
                 const idx = i * 5 + j;
                 const btn = new ButtonBuilder()
                     .setCustomId(`mine_click_${idx}`)
@@ -208,9 +207,9 @@ module.exports = {
 
     revealAll(game, isWin, explodedIdx = -1) {
         const rows = [];
-        for (let i = 0; i < 5; i++) {
+        for (let i = 0; i < 4; i++) { // 4 Rows
             const row = new ActionRowBuilder();
-            for (let j = 0; j < 5; j++) {
+            for (let j = 0; j < 5; j++) { // 5 Cols
                 const idx = i * 5 + j;
                 const btn = new ButtonBuilder()
                     .setCustomId(`mine_disabled_${idx}`)
@@ -229,6 +228,18 @@ module.exports = {
             }
             rows.push(row);
         }
+
+        // Add Cashout Button (Disabled)
+        const controlRow = new ActionRowBuilder().addComponents(
+            new ButtonBuilder()
+                .setCustomId('mine_cashout_disabled')
+                .setLabel(isWin ? '💰 CASHED OUT' : '💀 GAME OVER')
+                .setStyle(isWin ? ButtonStyle.Success : ButtonStyle.Danger)
+                .setDisabled(true)
+        );
+
+        rows.push(controlRow);
+
         return rows;
     }
 };

@@ -1,4 +1,5 @@
 const db = require('../database.js');
+const { EmbedBuilder } = require('discord.js');
 
 // Cooldown Map for Doa Ujang
 const doaCooldowns = new Map();
@@ -145,24 +146,28 @@ module.exports = {
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
             // Initial State: All spinning
+            // Initial State: All spinning
             const spinning = '🌀';
-            const renderFrame = (r1, r2, r3) => {
-                return `**🎰 WARUNG SLOTS 🎰**\n` +
-                    `╔═════════════════╗\n` +
-                    `║   ${r1}  ${r2}  ${r3}   ║\n` +
-                    `╚═════════════════╝`;
+
+            const createEmbed = (r1, r2, r3, status, color = '#0099ff') => {
+                const grid = `\`\`\`\n╔═════════════════╗\n║   ${r1}  ${r2}  ${r3}   ║\n╚═════════════════╝\n\`\`\``;
+                return new EmbedBuilder()
+                    .setTitle('🎰 WARUNG SLOTS 🎰')
+                    .setDescription(grid)
+                    .setColor(color)
+                    .addFields({ name: 'Status', value: status });
             };
 
-            const msg = await message.reply(renderFrame(spinning, spinning, spinning) + `\n*Spinning...*`);
+            const msg = await message.reply({ embeds: [createEmbed(spinning, spinning, spinning, 'Spinning...')] });
 
             // Animation Sequence
             // Reel 1 Stop
             await delay(1000);
-            await msg.edit(renderFrame(r1, spinning, spinning) + `\n*Spinning...*`);
+            await msg.edit({ embeds: [createEmbed(r1, spinning, spinning, 'Spinning...')] });
 
             // Reel 2 Stop
             await delay(1000);
-            await msg.edit(renderFrame(r1, r2, spinning) + `\n*Spinning...*`);
+            await msg.edit({ embeds: [createEmbed(r1, r2, spinning, 'Spinning...')] });
 
             // Reel 3 Stop (Final Result)
             await delay(1000);
@@ -180,7 +185,8 @@ module.exports = {
             if (winMultiplier === 5) resultText = `🚨 **JACKPOT!!!** (+Rp ${winAmount.toLocaleString('id-ID')})`;
             if (luck > 0) resultText += ` 🍀`;
 
-            await msg.edit(renderFrame(r1, r2, r3) + `\n${resultText}`);
+            const finalColor = winMultiplier > 0 ? '#00ff00' : '#ff0000';
+            await msg.edit({ embeds: [createEmbed(r1, r2, r3, resultText, finalColor)] });
         }
         // !math <amount>
         if (command === '!math') {
@@ -355,21 +361,21 @@ module.exports = {
 
             argsIdx++;
             let mode = 'normal'; // normal, auto, turbo
-            let spinCount = 1;
+            let requestedSpins = 1;
 
             if (args[argsIdx]?.toLowerCase() === 'auto') {
                 mode = 'auto';
                 argsIdx++;
-                if (args[argsIdx] && !isNaN(args[argsIdx])) spinCount = parseInt(args[argsIdx]);
+                if (args[argsIdx] && !isNaN(args[argsIdx])) requestedSpins = parseInt(args[argsIdx]);
             } else if (args[argsIdx]?.toLowerCase() === 'turbo') {
                 mode = 'turbo';
                 argsIdx++;
-                if (args[argsIdx] && !isNaN(args[argsIdx])) spinCount = parseInt(args[argsIdx]);
+                if (args[argsIdx] && !isNaN(args[argsIdx])) requestedSpins = parseInt(args[argsIdx]);
             }
 
             // Limit Spins
-            if (spinCount > 100) spinCount = 100;
-            if (spinCount < 1) spinCount = 1;
+            if (requestedSpins > 100) requestedSpins = 100;
+            if (requestedSpins < 1) requestedSpins = 1;
 
             const costPerSpin = isBuy ? amount * 100 : amount;
 
@@ -388,40 +394,45 @@ module.exports = {
             };
 
             const getPayout = (symbol, count) => {
-                if (count < 8) return 0; // Back to 8
+                if (count < 8) return 0;
                 if (symbols.low.includes(symbol)) {
-                    if (count >= 12) return 1.5; // 1.5x (was 8x)
-                    if (count >= 10) return 1;   // 1x (was 3x)
-                    return 0.5; // 8-9 simbol = 0.5x (was 1.5x)
+                    if (count >= 12) return 1.5;
+                    if (count >= 10) return 1;
+                    return 0.5;
                 }
                 if (symbols.high.includes(symbol)) {
-                    if (count >= 12) return 2.5; // 2.5x (was 40x)
-                    if (count >= 10) return 1.5; // 1.5x (was 12x)
-                    return 1; // 8-9 simbol = 1x (was 4x)
+                    if (count >= 12) return 2.5;
+                    if (count >= 10) return 1.5;
+                    return 1;
                 }
                 return 0;
             };
 
-            const generateGrid = () => {
+            const generateGrid = (isFreeSpinMode) => {
                 // STREAK SYSTEM: Hot (20%), Cold (20%), Normal (60%)
                 const streakRoll = Math.random();
                 let scatterChance, multiChance, highChance;
 
-                if (streakRoll < 0.15) {
-                    // HOT STREAK - Hoki banget!
-                    scatterChance = 0.05;  // 5%
-                    multiChance = 0.07;    // 2%
-                    highChance = 0.58;     // 51%
+                // Boost chances slightly during Free Spins
+                if (isFreeSpinMode) {
+                    scatterChance = 0.03; // Higher chance to retrigger
+                    multiChance = 0.08;   // More multipliers
+                    highChance = 0.55;
+                } else if (streakRoll < 0.15) {
+                    // HOT STREAK
+                    scatterChance = 0.05;
+                    multiChance = 0.07;
+                    highChance = 0.58;
                 } else if (streakRoll < 0.45) {
-                    // COLD STREAK - Rungkad parah! (30% chance)
-                    scatterChance = 0.008; // 0.8% (susah banget free spins)
-                    multiChance = 0.015;   // 0.7% (multiplier langka)
-                    highChance = 0.30;     // 28.5% (kebanyakan low symbol)
+                    // COLD STREAK
+                    scatterChance = 0.008;
+                    multiChance = 0.015;
+                    highChance = 0.30;
                 } else {
                     // NORMAL
-                    scatterChance = 0.025; // 2.5%
-                    multiChance = 0.04;    // 1.5%
-                    highChance = 0.47;     // 43%
+                    scatterChance = 0.025;
+                    multiChance = 0.04;
+                    highChance = 0.47;
                 }
 
                 const grid = [];
@@ -440,47 +451,92 @@ module.exports = {
             };
 
             // ASCII Helper
-            const renderFrame = (gridRows, footer = '') => {
+            // Embed Helper
+            const renderEmbed = (gridRows, bet, status, resultText, logs, color = 'Blue') => {
+                const gridString = gridRows.map(row => `║ ${row.join('  ')} ║`).join('\n');
                 const borderTop = '╔══════════════════════════════════╗';
                 const borderBot = '╚══════════════════════════════════╝';
-                const title = '║    ⚡ GATES OF MANG UJANG ⚡     ║';
+                const fullGrid = `\`\`\`\n${borderTop}\n${gridString}\n${borderBot}\n\`\`\``;
 
-                let content = `${borderTop}\n${title}\n${borderBot}\n`;
+                const embed = new EmbedBuilder()
+                    .setTitle('🎰 WARUNG SLOTS (Gates of Mang Ujang) 🎰')
+                    .setColor(color)
+                    .setDescription(fullGrid)
+                    .addFields(
+                        { name: '💰 Bet', value: `Rp ${bet.toLocaleString('id-ID')}`, inline: true },
+                        { name: '📊 Status', value: status, inline: true }
+                    );
 
-                gridRows.forEach(row => {
-                    content += `║ ${row.join('  ')} ║\n`;
-                });
-                content += borderBot;
-                if (footer) content += `\n${footer}`;
-                return content;
+                if (resultText) {
+                    embed.addFields({ name: '📝 Result', value: resultText, inline: false });
+                }
+
+                if (logs && logs.length > 0) {
+                    embed.setFooter({ text: logs.join(' | ') });
+                }
+
+                return embed;
             };
 
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const spinning = '🌀';
 
-            let msg = await message.reply(`🚀 **Memulai ${mode === 'normal' ? 'Spin' : mode.toUpperCase() + ' Mode'} (${spinCount}x)...**`);
+            // Initial Embed
+            let msg = await message.reply({
+                content: `🚀 **Memulai ${mode === 'normal' ? 'Spin' : mode.toUpperCase() + ' Mode'} (${requestedSpins}x)...**`,
+                embeds: [renderEmbed(
+                    Array(5).fill(Array(6).fill(spinning)),
+                    amount,
+                    'Starting...',
+                    null,
+                    [],
+                    'Blue'
+                )]
+            });
 
             let totalSpent = 0;
             let totalWon = 0;
-            let winCount = 0;
+            let spinsLeft = requestedSpins;
+            let freeSpinsQueue = 0;
+            let spinIndex = 0;
+            let accumulatedMultiplier = 0; // For Free Spins
+
+            const MAX_WIN_CAP = amount * 5000;
+            let isMaxWinReached = false;
 
             // --- SPIN LOOP ---
-            for (let i = 1; i <= spinCount; i++) {
-                // Re-check balance
-                const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-                if (user.uang_jajan < costPerSpin) {
-                    await message.channel.send(`⚠️ **Stop!** Uang habis di spin ke-${i}.`);
-                    break;
+            while ((spinsLeft > 0 || freeSpinsQueue > 0) && !isMaxWinReached) {
+                spinIndex++;
+                let isFreeSpin = false;
+                let currentCost = 0;
+
+                // Determine if Free Spin or Paid Spin
+                if (freeSpinsQueue > 0) {
+                    isFreeSpin = true;
+                    freeSpinsQueue--;
+                } else {
+                    spinsLeft--;
+                    currentCost = costPerSpin;
                 }
 
-                // Deduct
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(costPerSpin, userId);
-                totalSpent += costPerSpin;
-                handleJackpot(costPerSpin, userId);
+                // Check Balance for Paid Spins
+                if (!isFreeSpin) {
+                    const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+                    if (user.uang_jajan < currentCost) {
+                        await message.channel.send(`⚠️ **Stop!** Uang habis di spin ke-${spinIndex}.`);
+                        break;
+                    }
+                    // Deduct
+                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(currentCost, userId);
+                    totalSpent += currentCost;
+                    handleJackpot(currentCost, userId);
+                }
 
                 // Generate Grid
-                let grid = generateGrid();
-                if (isBuy) {
+                let grid = generateGrid(isFreeSpin);
+
+                // Handle Buy Feature (Force Scatters on first spin if bought)
+                if (isBuy && spinIndex === 1) {
                     let scatters = 0;
                     for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) if (grid[r][c] === symbols.scatter) scatters++;
                     while (scatters < 4) {
@@ -493,7 +549,9 @@ module.exports = {
                     }
                 }
 
-                // Animation (Only for Normal or Auto)
+                // Animation (Only for Normal or Auto, skip for Turbo unless it's a Free Spin trigger maybe?)
+                // To keep it fast, we skip animation in Turbo, but maybe show it if it's a big win?
+                // For now, keep standard logic:
                 if (mode !== 'turbo') {
                     for (let r = 1; r <= 5; r++) {
                         const partialGrid = [];
@@ -501,8 +559,10 @@ module.exports = {
                             if (j < r) partialGrid.push(grid[j]);
                             else partialGrid.push(Array(6).fill(spinning));
                         }
-                        const footer = `Bet: Rp ${amount.toLocaleString('id-ID')}\nSpin ${i}/${spinCount}`;
-                        await msg.edit(renderFrame(partialGrid, footer));
+                        let status = isFreeSpin ? `🔥 FREE SPIN (${freeSpinsQueue + 1} Left)` : `Spin ${spinIndex}`;
+                        if (accumulatedMultiplier > 0) status += ` | Total Multi: x${accumulatedMultiplier}`;
+
+                        await msg.edit({ embeds: [renderEmbed(partialGrid, amount, status, 'Spinning...', [], 'Blue')] });
                         await delay(800);
                     }
                 }
@@ -511,13 +571,30 @@ module.exports = {
                 let spinWin = 0;
                 let log = [];
 
-                // 1. Scatters
+                // 1. Scatters (Trigger Free Spins)
                 let scatterCount = 0;
                 for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) if (grid[r][c] === symbols.scatter) scatterCount++;
+
                 if (scatterCount >= 4) {
-                    const bonus = costPerSpin * (Math.random() * 50 + 10);
-                    spinWin += bonus;
-                    log.push(`✨ **FREE SPINS!** (+Rp ${bonus.toLocaleString('id-ID')})`);
+                    const addedSpins = 10;
+                    freeSpinsQueue += addedSpins;
+                    log.push(`✨ **SCATTER! +${addedSpins} FREE SPINS**`);
+
+                    const scatterEmbed = new EmbedBuilder()
+                        .setTitle('✨ SCATTER TRIGGERED! ✨')
+                        .setDescription(`Selamat! Kamu dapat **+${addedSpins} Free Spins**!`)
+                        .setImage('attachment://scatter.png')
+                        .setColor('#FFD700');
+
+                    const scatterMsg = await message.channel.send({
+                        embeds: [scatterEmbed],
+                        files: ['./assets/scatter.png']
+                    });
+
+                    await delay(3000); // Wait 3 seconds
+                    try {
+                        await scatterMsg.delete(); // Auto-delete
+                    } catch (e) { }
                 }
 
                 // 2. Symbols
@@ -545,11 +622,23 @@ module.exports = {
                 }
 
                 if (roundWin > 0) {
-                    if (roundMulti > 0) {
-                        spinWin += roundWin * roundMulti;
-                        log.push(`💣 **Multiplier x${roundMulti}**`);
+                    // Accumulating Multiplier Logic for Free Spins
+                    if (isFreeSpin) {
+                        if (roundMulti > 0) {
+                            accumulatedMultiplier += roundMulti;
+                            spinWin = roundWin * accumulatedMultiplier;
+                            log.push(`💣 **Multi x${roundMulti}** (Total: x${accumulatedMultiplier})`);
+                        } else {
+                            spinWin = roundWin;
+                        }
                     } else {
-                        spinWin += roundWin;
+                        // Normal Spin
+                        if (roundMulti > 0) {
+                            spinWin = roundWin * roundMulti;
+                            log.push(`💣 **Multiplier x${roundMulti}**`);
+                        } else {
+                            spinWin = roundWin;
+                        }
                     }
                 }
 
@@ -557,35 +646,51 @@ module.exports = {
                 if (spinWin > 0) {
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(spinWin, userId);
                     totalWon += spinWin;
-                    winCount++;
+                }
+
+                // MAX WIN CHECK
+                if (totalWon >= MAX_WIN_CAP) {
+                    totalWon = MAX_WIN_CAP;
+                    isMaxWinReached = true;
                 }
 
                 // Update Message (Final Result of this spin)
                 const resultText = spinWin > 0 ? `💰 **WIN: Rp ${spinWin.toLocaleString('id-ID')}**` : `📉 **RUNGKAD**`;
-                const footer = `Bet: Rp ${amount.toLocaleString('id-ID')}\nSpin ${i}/${spinCount}\n${resultText}\n${log.join(' | ')}`;
+                let status = isFreeSpin ? `🔥 FREE SPIN (${freeSpinsQueue} Left)` : `Spin ${spinIndex}`;
+                if (accumulatedMultiplier > 0) status += ` | Total Multi: x${accumulatedMultiplier}`;
+
+                const color = spinWin > 0 ? 'Green' : 'Red';
 
                 if (mode === 'turbo') {
-                    await msg.edit(renderFrame(grid, footer));
+                    await msg.edit({ embeds: [renderEmbed(grid, amount, status, resultText, log, color)] });
                     await delay(500);
                 } else {
-                    await msg.edit(renderFrame(grid, footer));
+                    await msg.edit({ embeds: [renderEmbed(grid, amount, status, resultText, log, color)] });
                     await delay(1500);
                 }
             }
 
             // --- FINAL SUMMARY ---
-            if (spinCount > 1) {
-                const profit = totalWon - totalSpent;
-                const profitText = profit >= 0 ? `📈 **PROFIT:** Rp ${profit.toLocaleString('id-ID')}` : `📉 **RUGI:** Rp ${Math.abs(profit).toLocaleString('id-ID')}`;
-
-                const summary = `📊 **HASIL AUTO SPIN** 📊\n` +
-                    `Total Spin: ${spinCount}\n` +
-                    `Total Modal: Rp ${totalSpent.toLocaleString('id-ID')}\n` +
-                    `Total Menang: Rp ${totalWon.toLocaleString('id-ID')}\n` +
-                    `${profitText}`;
-
-                await message.channel.send(summary);
+            if (isMaxWinReached) {
+                await message.channel.send({ files: ['./assets/maxwin.png'] });
+                await delay(1000);
+                await message.channel.send(`🎉🎉 **MAX WIN REACHED!** 🎉🎉\nSelamat! Kamu mencapai kemenangan maksimal **5000x** (Rp ${MAX_WIN_CAP.toLocaleString('id-ID')})!`);
             }
+
+            const profit = totalWon - totalSpent;
+
+
+            const summaryEmbed = new EmbedBuilder()
+                .setTitle('📊 HASIL SPIN 📊')
+                .setColor(profit >= 0 ? '#00FF00' : '#FF0000')
+                .addFields(
+                    { name: 'Total Spin', value: `${spinIndex}`, inline: true },
+                    { name: 'Total Modal', value: `Rp ${totalSpent.toLocaleString('id-ID')}`, inline: true },
+                    { name: 'Total Menang', value: `Rp ${totalWon.toLocaleString('id-ID')}`, inline: true },
+                    { name: profit >= 0 ? '📈 PROFIT' : '📉 RUGI', value: `Rp ${Math.abs(profit).toLocaleString('id-ID')}`, inline: false }
+                );
+
+            await message.channel.send({ embeds: [summaryEmbed] });
         }
 
         // !raffle
