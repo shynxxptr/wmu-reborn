@@ -1,5 +1,6 @@
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const db = require('../database.js');
+const { formatMoney } = require('../utils/helpers.js');
 
 let activeHeist = null;
 
@@ -220,7 +221,7 @@ module.exports = {
 
         const embed = new EmbedBuilder()
             .setTitle('💰 HEIST SUKSES!')
-            .setDescription(`Total Jarahan: **Rp ${totalLoot.toLocaleString('id-ID')}**\n\n🏃 **Lolos (${survivors.length}):**\nDapat masing-masing **Rp ${share.toLocaleString('id-ID')}**\n\n👮 **Ketangkep (${caught.length}):**\nMasuk penjara 15 menit!`)
+            .setDescription(`Total Jarahan: **Rp ${formatMoney(totalLoot)}**\n\n🏃 **Lolos (${survivors.length}):**\nDapat masing-masing **Rp ${formatMoney(share)}**\n\n👮 **Ketangkep (${caught.length}):**\nMasuk penjara 15 menit!`)
             .setColor('#00FF00');
 
         await channel.send({ embeds: [embed] });

@@ -1,5 +1,5 @@
 module.exports = {
-    MAX_ROLE_SLOTS: 3, 
+    MAX_ROLE_SLOTS: 3,
 
     TIKET_CONFIG: {
         // PASTIKAN KATA KUNCINYA ADALAH 'duration'
@@ -26,5 +26,13 @@ module.exports = {
             else if (unit === 'm') totalSeconds += num * 60;
         }
         return totalSeconds;
+    },
+
+    formatMoney: (amount) => {
+        if (amount >= 1000000000000) return (amount / 1000000000000).toFixed(1) + 'T';
+        if (amount >= 1000000000) return (amount / 1000000000).toFixed(1) + 'M';
+        if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'jt';
+        if (amount >= 1000) return (amount / 1000).toFixed(1) + 'k';
+        return amount.toString();
     }
 };

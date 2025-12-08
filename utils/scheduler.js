@@ -28,4 +28,24 @@ function initCleanupScheduler() {
     console.log('📅 [SCHEDULER] Monthly cleanup scheduler initialized');
 }
 
-module.exports = { initCleanupScheduler };
+/**
+ * Initialize Leaderboard Role Rotation Scheduler
+ * Runs every 10 minutes
+ */
+function initLeaderboardScheduler(client) {
+    const { updateLeaderboardRoles } = require('../handlers/leaderboardHandler.js');
+
+    const runRotation = async () => {
+        // console.log('🔄 [SCHEDULER] Running leaderboard role rotation...');
+        await updateLeaderboardRoles(client);
+    };
+
+    // Run immediately on start
+    runRotation();
+
+    // Then every 10 minutes
+    setInterval(runRotation, 10 * 60 * 1000);
+    console.log('👑 [SCHEDULER] Leaderboard role rotation initialized');
+}
+
+module.exports = { initCleanupScheduler, initLeaderboardScheduler };

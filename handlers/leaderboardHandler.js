@@ -117,7 +117,8 @@ async function showLeaderboard(source, db) {
             // Draw Balance
             ctx.fillStyle = '#00FF00'; // Green money
             ctx.font = '20px sans-serif';
-            ctx.fillText(`Rp ${u.uang_jajan.toLocaleString('id-ID')}`, 150, y + 45);
+            const { formatMoney } = require('../utils/helpers.js');
+            ctx.fillText(`Rp ${formatMoney(u.uang_jajan)}`, 150, y + 45);
 
             // Draw Progress Bar Background
             ctx.fillStyle = '#444444';
@@ -190,4 +191,56 @@ async function showLeaderboard(source, db) {
     });
 }
 
-module.exports = { showLeaderboard };
+async function updateLeaderboardRoles(client) {
+    // 1. Get Role IDs from DB
+    const role1 = db.getSystemVar('lb_role_1');
+    const role2 = db.getSystemVar('lb_role_2');
+    const role3 = db.getSystemVar('lb_role_3');
+
+    if (!role1 && !role2 && !role3) return; // No roles configured
+
+    // 2. Get Top 3 Users
+    const topUsers = db.getTopBalances(3);
+    const topIds = topUsers.map(u => u.user_id);
+
+    // 3. Iterate all guilds (usually just one)
+    for (const guild of client.guilds.cache.values()) {
+        try {
+            await guild.members.fetch(); // Cache all members
+
+            // Helper to handle role
+            const handleRole = async (rank, roleId) => {
+                if (!roleId) return;
+                const role = guild.roles.cache.get(roleId);
+                if (!role) return;
+
+                // Target User for this rank
+                const targetId = topIds[rank - 1]; // rank 1 -> index 0
+
+                // Remove role from everyone EXCEPT target
+                for (const [memberId, member] of guild.members.cache) {
+                    if (member.roles.cache.has(roleId) && memberId !== targetId) {
+                        await member.roles.remove(role).catch(() => { });
+                    }
+                }
+
+                // Add role to target
+                if (targetId) {
+                    const member = guild.members.cache.get(targetId);
+                    if (member && !member.roles.cache.has(roleId)) {
+                        await member.roles.add(role).catch(() => { });
+                    }
+                }
+            };
+
+            await handleRole(1, role1);
+            await handleRole(2, role2);
+            await handleRole(3, role3);
+
+        } catch (e) {
+            console.error(`[LB ROLES] Error in guild ${guild.name}:`, e);
+        }
+    }
+}
+
+module.exports = { showLeaderboard, updateLeaderboardRoles };
