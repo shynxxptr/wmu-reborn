@@ -47,6 +47,12 @@ module.exports = {
         const content = message.content.toLowerCase().trim();
         const userId = message.author.id;
 
+        // --- 0. CEK PENJARA ---
+        const jail = db.isJailed(userId);
+        if (jail) {
+            return message.reply(`🔒 **KAMU DIPENJARA!**\nAlasan: ${jail.reason}\nBebas dalam: <t:${Math.ceil(jail.release_time / 1000)}:R>.\n\n*Jangan nakal lagi ya!*`);
+        }
+
         // 1. CEK DOMPET
         if (content === '!cekdompet') {
             const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
@@ -414,7 +420,21 @@ module.exports = {
             return message.reply('✅ **RESET BERHASIL!**\nSemua uang user telah di-reset menjadi 0. Miskin berjamaah dimulai!');
         }
 
-        // --- 6. HELP COMMAND ---
+        // --- 6. LEADERBOARD ---
+        if (content.startsWith('!leaderboard') || content.startsWith('!lb') || content.startsWith('!top')) {
+            const leaderboardHandler = require('../handlers/leaderboardHandler.js');
+            await leaderboardHandler.showLeaderboard(message, db);
+            return;
+        }
+
+        // --- 7. HEIST ---
+        if (content === '!heist') {
+            const heistHandler = require('../handlers/heistHandler.js');
+            await heistHandler.startHeist(message);
+            return;
+        }
+
+        // --- 8. HELP COMMAND ---
         if (content === '!kantin help' || content === '!kantinhelp' || content === '!help') {
             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 
@@ -475,7 +495,14 @@ module.exports = {
                             value:
                                 '`!duelslot @user <bet>` - Duel Slot 1vs1.\n' +
                                 '`!uno create <prize>` - Bikin Room UNO Berduit.\n' +
-                                '`!raffle buy <n>` - Beli tiket undian server.'
+                                '`!raffle buy <n>` - Beli tiket undian server.\n' +
+                                '`!heist` - Ajak temen rampok bank (Minigame).'
+                        },
+                        {
+                            name: '🏆 LEADERBOARD',
+                            value:
+                                '`!leaderboard` - Cek Top 100 Sultan.\n' +
+                                '`!lb` / `!top` - Alias untuk leaderboard.'
                         }
                     )
                     .setFooter({ text: 'Halaman 2 dari 3 • Gunakan "all" untuk all-in (Contoh: !cf all h).' }),

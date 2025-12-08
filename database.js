@@ -405,5 +405,47 @@ db.setCooldown = (userId, actionType, timestamp = null) => {
     } catch (e) { return false; }
 };
 
+db.getTopBalances = (limit = 10) => {
+    try {
+        return db.prepare('SELECT user_id, uang_jajan FROM user_economy ORDER BY uang_jajan DESC LIMIT ?').all(limit);
+    } catch (e) { return []; }
+};
+
+// 15. JAIL SYSTEM
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_jail (
+        user_id TEXT PRIMARY KEY,
+        release_time INTEGER NOT NULL,
+        reason TEXT
+    )
+`);
+
+db.jailUser = (userId, durationMs, reason = 'Kriminal') => {
+    try {
+        const releaseTime = Date.now() + durationMs;
+        db.prepare(`
+            INSERT INTO user_jail (user_id, release_time, reason) VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET release_time = ?, reason = ?
+        `).run(userId, releaseTime, reason, releaseTime, reason);
+        return true;
+    } catch (e) { return false; }
+};
+
+db.isJailed = (userId) => {
+    try {
+        const jail = db.prepare('SELECT release_time, reason FROM user_jail WHERE user_id = ?').get(userId);
+        if (!jail) return null;
+
+        if (Date.now() > jail.release_time) {
+            db.prepare('DELETE FROM user_jail WHERE user_id = ?').run(userId);
+            return null;
+        }
+        return jail;
+    } catch (e) { return null; }
+};
+
+// 16. HEIST COOLDOWN (Global or Per User)
+// Using existing user_cooldowns table with 'heist' action_type
+
 module.exports = db;
 
