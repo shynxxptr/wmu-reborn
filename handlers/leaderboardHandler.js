@@ -117,7 +117,8 @@ async function showLeaderboard(source, db) {
             // Draw Balance
             ctx.fillStyle = '#00FF00'; // Green money
             ctx.font = '20px sans-serif';
-            ctx.fillText(`Rp ${u.uang_jajan.toLocaleString('id-ID')}`, 150, y + 45);
+            const { formatMoney } = require('../utils/helpers.js');
+            ctx.fillText(`Rp ${formatMoney(u.uang_jajan)}`, 150, y + 45);
 
             // Draw Progress Bar Background
             ctx.fillStyle = '#444444';

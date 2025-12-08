@@ -1,5 +1,7 @@
 const db = require('../database.js');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const { formatMoney } = require('../utils/helpers.js');
+const path = require('path');
 
 // Cooldown Map for Doa Ujang
 const doaCooldowns = new Map();
@@ -24,7 +26,7 @@ module.exports = {
                 if (jackpotPool > 0) {
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(jackpotPool, user);
                     db.resetJackpot();
-                    message.channel.send(`🚨 **GLOBAL JACKPOT ALERT** 🚨\n🎉 <@${user}> BARUSAN JEBOL JACKPOT SEBESAR **Rp ${jackpotPool.toLocaleString('id-ID')}**! 🎉\n*Sultan mendadak!* 💸`);
+                    message.channel.send(`🚨 **GLOBAL JACKPOT ALERT** 🚨\n🎉 <@${user}> BARUSAN JEBOL JACKPOT SEBESAR **Rp ${formatMoney(jackpotPool)}**! 🎉\n*Sultan mendadak!* 💸`);
                 }
             }
         };
@@ -44,7 +46,7 @@ module.exports = {
             const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
 
             if (!user || user.uang_jajan < cost) {
-                return message.reply(`💸 **Sedekah kurang!** Butuh Rp ${cost.toLocaleString('id-ID')} buat beli dupa.`);
+                return message.reply(`💸 **Sedekah kurang!** Butuh Rp ${formatMoney(cost)} buat beli dupa.`);
             }
 
             // Deduct cost
@@ -104,10 +106,10 @@ module.exports = {
             if (isWin) {
                 db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
                 const luckMsg = luck > 0 ? ` (🍀 Luck +${luck}%)` : '';
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${amount.toLocaleString('id-ID')}! 🎉${luckMsg}`);
+                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${formatMoney(amount)}! 🎉${luckMsg}`);
             } else {
                 db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu KALAH Rp ${amount.toLocaleString('id-ID')}. Sad. 📉`);
+                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu KALAH Rp ${formatMoney(amount)}. Sad. 📉`);
             }
         }
 
@@ -183,8 +185,8 @@ module.exports = {
                 db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, userId); // Add win (original bet already deducted)
             }
 
-            let resultText = winMultiplier > 0 ? `🎉 **WIN!** (+Rp ${winAmount.toLocaleString('id-ID')})` : '📉 **LOSE**';
-            if (winMultiplier === 5) resultText = `🚨 **JACKPOT!!!** (+Rp ${winAmount.toLocaleString('id-ID')})`;
+            let resultText = winMultiplier > 0 ? `🎉 **WIN!** (+Rp ${formatMoney(winAmount)})` : '📉 **LOSE**';
+            if (winMultiplier === 5) resultText = `🚨 **JACKPOT!!!** (+Rp ${formatMoney(winAmount)})`;
             if (luck > 0) resultText += ` 🍀`;
 
             const finalColor = winMultiplier > 0 ? '#00ff00' : '#ff0000';
@@ -326,15 +328,15 @@ module.exports = {
                 if (ans === a) {
                     const winAmount = Math.floor(amount * multiplier);
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, userId);
-                    m.reply(`✅ **BENAR!** Kamu menang Rp ${winAmount.toLocaleString('id-ID')}! 🎉`);
+                    m.reply(`✅ **BENAR!** Kamu menang Rp ${formatMoney(winAmount)}! 🎉`);
                 } else {
-                    m.reply(`❌ **SALAH!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${amount.toLocaleString('id-ID')}.`);
+                    m.reply(`❌ **SALAH!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.`);
                 }
             });
 
             collector.on('end', collected => {
                 if (collected.size === 0) {
-                    message.reply(`⏰ **WAKTU HABIS!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${amount.toLocaleString('id-ID')}.`);
+                    message.reply(`⏰ **WAKTU HABIS!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.`);
                 }
             });
         }
@@ -384,7 +386,7 @@ module.exports = {
             // Initial Check
             const userCheck = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
             if (!userCheck || userCheck.uang_jajan < costPerSpin) {
-                return message.reply(`💸 **Uang gak cukup!** Butuh Rp ${costPerSpin.toLocaleString('id-ID')} per spin.`);
+                return message.reply(`💸 **Uang gak cukup!** Butuh Rp ${formatMoney(costPerSpin)} per spin.`);
             }
 
             // Symbols & Helpers
@@ -465,7 +467,7 @@ module.exports = {
                     .setColor(color)
                     .setDescription(fullGrid)
                     .addFields(
-                        { name: '💰 Bet', value: `Rp ${bet.toLocaleString('id-ID')}`, inline: true },
+                        { name: '💰 Bet', value: `Rp ${formatMoney(bet)}`, inline: true },
                         { name: '📊 Status', value: status, inline: true }
                     );
 
@@ -607,7 +609,7 @@ module.exports = {
 
                     const scatterMsg = await message.channel.send({
                         embeds: [scatterEmbed],
-                        files: ['./assets/scatter.png']
+                        files: [path.join(__dirname, '../assets/scatter.png')]
                     });
 
                     await delay(3000); // Wait 3 seconds
@@ -674,7 +676,7 @@ module.exports = {
                 }
 
                 // Update Message (Final Result of this spin)
-                const resultText = spinWin > 0 ? `💰 **WIN: Rp ${spinWin.toLocaleString('id-ID')}**` : `📉 **RUNGKAD**`;
+                const resultText = spinWin > 0 ? `💰 **WIN: Rp ${formatMoney(spinWin)}**` : `📉 **RUNGKAD**`;
                 let status = isFreeSpin ? `🔥 FREE SPIN (${freeSpinsQueue} Left)` : `Spin ${spinIndex}`;
                 if (accumulatedMultiplier > 0) status += ` | Total Multi: x${accumulatedMultiplier}`;
 
@@ -691,9 +693,9 @@ module.exports = {
 
             // --- FINAL SUMMARY ---
             if (isMaxWinReached) {
-                await message.channel.send({ files: ['./assets/maxwin.png'] });
+                await message.channel.send({ files: [path.join(__dirname, '../assets/maxwin.png')] });
                 await delay(1000);
-                await message.channel.send(`🎉🎉 **MAX WIN REACHED!** 🎉🎉\nSelamat! Kamu mencapai kemenangan maksimal **5000x** (Rp ${MAX_WIN_CAP.toLocaleString('id-ID')})!`);
+                await message.channel.send(`🎉🎉 **MAX WIN REACHED!** 🎉🎉\nSelamat! Kamu mencapai kemenangan maksimal **5000x** (Rp ${formatMoney(MAX_WIN_CAP)})!`);
             }
 
             const profit = totalWon - totalSpent;
@@ -704,9 +706,9 @@ module.exports = {
                 .setColor(profit >= 0 ? '#00FF00' : '#FF0000')
                 .addFields(
                     { name: 'Total Spin', value: `${spinIndex}`, inline: true },
-                    { name: 'Total Modal', value: `Rp ${totalSpent.toLocaleString('id-ID')}`, inline: true },
-                    { name: 'Total Menang', value: `Rp ${totalWon.toLocaleString('id-ID')}`, inline: true },
-                    { name: profit >= 0 ? '📈 PROFIT' : '📉 RUGI', value: `Rp ${Math.abs(profit).toLocaleString('id-ID')}`, inline: false }
+                    { name: 'Total Modal', value: `Rp ${formatMoney(totalSpent)}`, inline: true },
+                    { name: 'Total Menang', value: `Rp ${formatMoney(totalWon)}`, inline: true },
+                    { name: profit >= 0 ? '📈 PROFIT' : '📉 RUGI', value: `Rp ${formatMoney(Math.abs(profit))}`, inline: false }
                 );
 
             await message.channel.send({ embeds: [summaryEmbed] });
@@ -725,7 +727,7 @@ module.exports = {
                 const res = db.buyRaffleTicket(userId, count, price);
 
                 if (res.success) {
-                    return message.reply(`🎟️ **Sukses!** Kamu membeli **${count}** tiket raffle seharga Rp ${(count * price).toLocaleString('id-ID')}.`);
+                    return message.reply(`🎟️ **Sukses!** Kamu membeli **${count}** tiket raffle seharga Rp ${formatMoney(count * price)}.`);
                 } else {
                     return message.reply(`❌ **Gagal:** ${res.error}`);
                 }
@@ -735,7 +737,7 @@ module.exports = {
                 const data = db.getRaffleData();
                 const userTickets = db.prepare("SELECT ticket_count FROM raffle_participants WHERE user_id = ?").get(userId)?.ticket_count || 0;
 
-                return message.reply(`🎟️ **RAFFLE INFO** 🎟️\n💰 **Total Pot:** Rp ${data.pot.toLocaleString('id-ID')}\n🎫 **Total Tiket:** ${data.totalTickets}\n👤 **Tiket Kamu:** ${userTickets}\n\n*Beli tiket dengan \`!raffle buy <jumlah>\` (Rp 5.000/tiket)*`);
+                return message.reply(`🎟️ **RAFFLE INFO** 🎟️\n💰 **Total Pot:** Rp ${formatMoney(data.pot)}\n🎫 **Total Tiket:** ${data.totalTickets}\n👤 **Tiket Kamu:** ${userTickets}\n\n*Beli tiket dengan \`!raffle buy <jumlah>\` (Rp 5.000/tiket)*`);
             }
 
             if (sub === 'draw') {
@@ -751,7 +753,7 @@ module.exports = {
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(data.pot, winnerId);
                     db.resetRaffle();
 
-                    return message.channel.send(`🎉 **RAFFLE DRAW** 🎉\nSelamat kepada <@${winnerId}> yang memenangkan POT sebesar **Rp ${data.pot.toLocaleString('id-ID')}**! 🥳💸`);
+                    return message.channel.send(`🎉 **RAFFLE DRAW** 🎉\nSelamat kepada <@${winnerId}> yang memenangkan POT sebesar **Rp ${formatMoney(data.pot)}**! 🥳💸`);
                 } else {
                     return message.reply('❌ Terjadi kesalahan saat mengundi.');
                 }

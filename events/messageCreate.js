@@ -1,5 +1,6 @@
 const { Events, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const db = require('../database.js');
+const { formatMoney } = require('../utils/helpers.js');
 const gameHandler = require('../handlers/gameHandler.js');
 const gamblingHandler = require('../handlers/gamblingHandler.js');
 const coinHandler = require('../handlers/coinHandler.js');
@@ -57,7 +58,7 @@ module.exports = {
         if (content === '!cekdompet') {
             const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
             const saldo = user ? user.uang_jajan : 0;
-            return message.reply(`💰 **Dompet ${message.author.username}:**\nRp ${saldo.toLocaleString('id-ID')}`);
+            return message.reply(`💰 **Dompet ${message.author.username}:**\nRp ${formatMoney(saldo)}`);
         }
 
         // 2. CEK APAKAH INI COMMAND JOB
@@ -113,7 +114,7 @@ module.exports = {
                 WHERE user_id = ?
             `).run(gaji, userId);
 
-            return message.reply(`✅ **${text}**\nUpah: +Rp ${gaji.toLocaleString('id-ID')}\nSisa Tenaga: ${MAX_JOBS_PER_HOUR - (user.last_work_count + 1)}/${MAX_JOBS_PER_HOUR} kali lagi jam ini.\n\n*Efek Kerja: Lapar +10, Haus +15, Stress +5*`);
+            return message.reply(`✅ **${text}**\nUpah: +Rp ${formatMoney(gaji)}\nSisa Tenaga: ${MAX_JOBS_PER_HOUR - (user.last_work_count + 1)}/${MAX_JOBS_PER_HOUR} kali lagi jam ini.\n\n*Efek Kerja: Lapar +10, Haus +15, Stress +5*`);
         }
 
         // --- 3. SOCIAL ECONOMY ---
@@ -138,7 +139,7 @@ module.exports = {
             // Confirmation Embed
             const confirmEmbed = new EmbedBuilder()
                 .setTitle('💸 Konfirmasi Transfer')
-                .setDescription(`Kamu yakin mau kirim **Rp ${amount.toLocaleString('id-ID')}** ke ${targetUser}?`)
+                .setDescription(`Kamu yakin mau kirim **Rp ${formatMoney(amount)}** ke ${targetUser}?`)
                 .setColor('#ffff00');
 
             const row = new ActionRowBuilder()
@@ -173,7 +174,7 @@ module.exports = {
                     if (!receiver) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(targetUser.id);
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, targetUser.id);
 
-                    await i.update({ content: `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${amount.toLocaleString('id-ID')} ke ${targetUser}.`, embeds: [], components: [] });
+                    await i.update({ content: `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${formatMoney(amount)} ke ${targetUser}.`, embeds: [], components: [] });
                 } else {
                     await i.update({ content: '❌ **Transfer Dibatalkan.**', embeds: [], components: [] });
                 }
@@ -212,13 +213,13 @@ module.exports = {
                     const val = (khodam.effect === 'all_20') ? 20 : parseInt(parts[1]);
                     const bonus = Math.floor(reward * (val / 100));
                     reward += bonus;
-                    bonusMsg = `\n👻 **Khodam Bonus:** +Rp ${bonus.toLocaleString('id-ID')} (${khodam.name})`;
+                    bonusMsg = `\n👻 **Khodam Bonus:** +Rp ${formatMoney(bonus)} (${khodam.name})`;
                 }
             }
 
             db.addSaldo(userId, reward);
             db.setCooldown(userId, 'daily', now);
-            return message.reply(`💰 **DAILY REWARD**\nKamu menerima **Rp ${reward.toLocaleString('id-ID')}**!${bonusMsg}`);
+            return message.reply(`💰 **DAILY REWARD**\nKamu menerima **Rp ${formatMoney(reward)}**!${bonusMsg}`);
         }
 
         // !minta (Beg)
@@ -258,7 +259,7 @@ module.exports = {
                 if (!user) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(userId);
                 db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
                 client.begCooldowns.set(userId, now);
-                return message.reply(`🥺 **Dikasih kasihan...**\nKamu dapet Rp ${amount.toLocaleString('id-ID')}${bonusMsg}.`);
+                return message.reply(`🥺 **Dikasih kasihan...**\nKamu dapet Rp ${formatMoney(amount)}${bonusMsg}.`);
             } else {
                 client.begCooldowns.set(userId, now);
                 const fails = [
@@ -374,7 +375,7 @@ module.exports = {
 
             db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, targetUser.id);
 
-            return message.reply(`✅ **Berhasil!**\nSaldo ${targetUser} ditambah **Rp ${amount.toLocaleString('id-ID')}**.`);
+            return message.reply(`✅ **Berhasil!**\nSaldo ${targetUser} ditambah **Rp ${formatMoney(amount)}**.`);
         }
 
         // !setmoney @user <amount>
@@ -398,7 +399,7 @@ module.exports = {
 
             db.prepare('UPDATE user_economy SET uang_jajan = ? WHERE user_id = ?').run(amount, targetUser.id);
 
-            return message.reply(`✅ **Berhasil!**\nSaldo ${targetUser} di-set menjadi **Rp ${amount.toLocaleString('id-ID')}**.`);
+            return message.reply(`✅ **Berhasil!**\nSaldo ${targetUser} di-set menjadi **Rp ${formatMoney(amount)}**.`);
         }
 
         // !resetmoney confirm
