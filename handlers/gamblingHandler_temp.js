@@ -1,5 +1,24 @@
-const db = require('../database.js');
-const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const db = require('./test_db_mock.js');
+// Mock Discord.js classes
+class EmbedBuilder {
+    setTitle(t) { this.title = t; return this; }
+    setDescription(d) { this.description = d; return this; }
+    setColor(c) { this.color = c; return this; }
+    addFields(...f) { this.fields = f; return this; }
+    setImage(i) { this.image = i; return this; }
+    setFooter(f) { this.footer = f; return this; }
+}
+class ActionRowBuilder {
+    addComponents(...c) { this.components = c; return this; }
+}
+class ButtonBuilder {
+    setCustomId(id) { this.customId = id; return this; }
+    setLabel(l) { this.label = l; return this; }
+    setStyle(s) { this.style = s; return this; }
+    setDisabled(d) { this.disabled = d; return this; }
+}
+const ButtonStyle = { Danger: 'Danger' };
+const MessageFlags = { Ephemeral: 'Ephemeral' };
 
 // Cooldown Map for Doa Ujang
 const doaCooldowns = new Map();
@@ -647,7 +666,7 @@ module.exports = {
                 for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) {
                     if (grid[r][c] === symbols.multi) {
                         // Reduced high multipliers chance
-                        const multis = [2, 2, 2, 5, 5, 10, 10, 25, 50]; 
+                        const multis = [2, 2, 2, 5, 5, 10, 10, 25, 50];
                         roundMulti += multis[Math.floor(Math.random() * multis.length)];
                     }
                 }
