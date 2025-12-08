@@ -1,8 +1,10 @@
 const db = require('../database.js');
-const { EmbedBuilder } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 
 // Cooldown Map for Doa Ujang
 const doaCooldowns = new Map();
+// Active Slots Map
+const activeSlots = new Map();
 
 module.exports = {
     async handleGambling(message, command, args) {
@@ -481,6 +483,14 @@ module.exports = {
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const spinning = '🌀';
 
+            // Stop Button
+            const stopButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('slot_stop')
+                    .setLabel('🛑 STOP AUTO SPIN')
+                    .setStyle(ButtonStyle.Danger)
+            );
+
             // Initial Embed
             let msg = await message.reply({
                 content: `🚀 **Memulai ${mode === 'normal' ? 'Spin' : mode.toUpperCase() + ' Mode'} (${requestedSpins}x)...**`,
@@ -491,8 +501,11 @@ module.exports = {
                     null,
                     [],
                     'Blue'
-                )]
+                )],
+                components: [stopButton]
             });
+
+            activeSlots.set(msg.id, { userId, stopped: false });
 
             let totalSpent = 0;
             let totalWon = 0;
@@ -506,6 +519,12 @@ module.exports = {
 
             // --- SPIN LOOP ---
             while ((spinsLeft > 0 || freeSpinsQueue > 0) && !isMaxWinReached) {
+                // Check Stop Flag
+                if (activeSlots.get(msg.id)?.stopped) {
+                    await message.channel.send(`🛑 **Auto Spin Dihentikan oleh User!**`);
+                    break;
+                }
+
                 spinIndex++;
                 let isFreeSpin = false;
                 let currentCost = 0;
@@ -691,6 +710,7 @@ module.exports = {
                 );
 
             await message.channel.send({ embeds: [summaryEmbed] });
+            activeSlots.delete(msg.id);
         }
 
         // !raffle
@@ -738,6 +758,32 @@ module.exports = {
             }
 
             return message.reply('❌ Command: `!raffle buy <n>`, `!raffle info`, `!raffle draw`');
+        }
+    },
+
+    async handleSlotInteraction(interaction) {
+        if (!interaction.customId.startsWith('slot_')) return;
+
+        if (interaction.customId === 'slot_stop') {
+            const game = activeSlots.get(interaction.message.id);
+            if (!game) return interaction.reply({ content: '❌ Sesi spin sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+
+            if (interaction.user.id !== game.userId) {
+                return interaction.reply({ content: '❌ Bukan sesi spin kamu!', flags: [MessageFlags.Ephemeral] });
+            }
+
+            game.stopped = true;
+            await interaction.reply({ content: '🛑 Menghentikan auto spin...', flags: [MessageFlags.Ephemeral] });
+
+            // Disable button
+            const disabledRow = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('slot_stop')
+                    .setLabel('🛑 STOPPED')
+                    .setStyle(ButtonStyle.Danger)
+                    .setDisabled(true)
+            );
+            await interaction.message.edit({ components: [disabledRow] });
         }
     }
 };

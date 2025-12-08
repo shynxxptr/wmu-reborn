@@ -371,6 +371,49 @@ module.exports = {
             return message.reply(`✅ **Berhasil!**\nSaldo ${targetUser} ditambah **Rp ${amount.toLocaleString('id-ID')}**.`);
         }
 
+        // !setmoney @user <amount>
+        if (content.startsWith('!setmoney ')) {
+            // Cek Permission Admin
+            if (!message.member.permissions.has('Administrator')) {
+                return message.reply('❌ **Akses Ditolak!** Kamu bukan Admin.');
+            }
+
+            const args = content.split(' ');
+            const targetUser = message.mentions.users.first();
+            const amount = parseInt(args[2]);
+
+            if (!targetUser || isNaN(amount)) {
+                return message.reply('❌ Format: `!setmoney @user <jumlah>`');
+            }
+
+            // Update DB
+            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(targetUser.id);
+            if (!user) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(targetUser.id);
+
+            db.prepare('UPDATE user_economy SET uang_jajan = ? WHERE user_id = ?').run(amount, targetUser.id);
+
+            return message.reply(`✅ **Berhasil!**\nSaldo ${targetUser} di-set menjadi **Rp ${amount.toLocaleString('id-ID')}**.`);
+        }
+
+        // !resetmoney confirm
+        if (content.startsWith('!resetmoney')) {
+            // Cek Permission Admin
+            if (!message.member.permissions.has('Administrator')) {
+                return message.reply('❌ **Akses Ditolak!** Kamu bukan Admin.');
+            }
+
+            const args = content.split(' ');
+            const confirm = args[1];
+
+            if (confirm !== 'confirm') {
+                return message.reply('⚠️ **PERINGATAN KERAS!**\nCommand ini akan **MENGHAPUS SEMUA UANG** (Uang Jajan & Coin Ujang) dari seluruh user di database.\n\nKetik `!resetmoney confirm` jika kamu yakin 100%.');
+            }
+
+            // Execute Reset
+            db.prepare('UPDATE user_economy SET uang_jajan = 0, coin_ujang = 0').run();
+            return message.reply('✅ **RESET BERHASIL!**\nSemua uang user telah di-reset menjadi 0. Miskin berjamaah dimulai!');
+        }
+
         // --- 6. HELP COMMAND ---
         if (content === '!kantin help' || content === '!kantinhelp' || content === '!help') {
             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');

@@ -8,6 +8,7 @@ const gameHandler = require('../handlers/gameHandler.js');
 const crashHandler = require('../handlers/crashHandler.js');
 const minesweeperHandler = require('../handlers/minesweeperHandler.js');
 const unoHandler = require('../handlers/unoHandler.js');
+const gamblingHandler = require('../handlers/gamblingHandler.js');
 const db = require('../database.js');
 
 module.exports = {
@@ -156,6 +157,12 @@ module.exports = {
             // I. UNO HANDLER
             if (id.startsWith('uno_')) {
                 await unoHandler.handleInteraction(interaction);
+                return;
+            }
+
+            // J. SLOT HANDLER (Stop Button)
+            if (id.startsWith('slot_')) {
+                await gamblingHandler.handleSlotInteraction(interaction);
                 return;
             }
 
