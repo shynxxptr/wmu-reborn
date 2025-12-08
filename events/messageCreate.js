@@ -435,7 +435,34 @@ module.exports = {
             return;
         }
 
-        // --- 8. HELP COMMAND ---
+        // --- 8. BLACKLIST LEADERBOARD (ADMIN) ---
+        if (content.startsWith('!blacklist ')) {
+            if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin Only!');
+            const target = message.mentions.users.first();
+            if (!target) return message.reply('❌ Tag user yang mau di-blacklist.');
+
+            if (db.blacklistUser(target.id)) {
+                message.reply(`✅ **${target.username}** berhasil di-blacklist dari leaderboard.`);
+            } else {
+                message.reply('❌ Gagal mem-blacklist user.');
+            }
+            return;
+        }
+
+        if (content.startsWith('!unblacklist ')) {
+            if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin Only!');
+            const target = message.mentions.users.first();
+            if (!target) return message.reply('❌ Tag user yang mau di-unblacklist.');
+
+            if (db.unblacklistUser(target.id)) {
+                message.reply(`✅ **${target.username}** dihapus dari blacklist.`);
+            } else {
+                message.reply('❌ Gagal unblacklist user.');
+            }
+            return;
+        }
+
+        // --- 9. HELP COMMAND ---
         if (content === '!kantin help' || content === '!kantinhelp' || content === '!help') {
             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 

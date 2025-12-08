@@ -405,12 +405,6 @@ db.setCooldown = (userId, actionType, timestamp = null) => {
     } catch (e) { return false; }
 };
 
-db.getTopBalances = (limit = 10) => {
-    try {
-        return db.prepare('SELECT user_id, uang_jajan FROM user_economy ORDER BY uang_jajan DESC LIMIT ?').all(limit);
-    } catch (e) { return []; }
-};
-
 // 15. JAIL SYSTEM
 db.exec(`
     CREATE TABLE IF NOT EXISTS user_jail (
@@ -446,6 +440,47 @@ db.isJailed = (userId) => {
 
 // 16. HEIST COOLDOWN (Global or Per User)
 // Using existing user_cooldowns table with 'heist' action_type
+
+// 17. LEADERBOARD BLACKLIST
+db.exec(`
+    CREATE TABLE IF NOT EXISTS leaderboard_blacklist (
+        user_id TEXT PRIMARY KEY
+    )
+`);
+
+db.blacklistUser = (userId) => {
+    try {
+        db.prepare('INSERT OR IGNORE INTO leaderboard_blacklist (user_id) VALUES (?)').run(userId);
+        return true;
+    } catch (e) { return false; }
+};
+
+db.unblacklistUser = (userId) => {
+    try {
+        db.prepare('DELETE FROM leaderboard_blacklist WHERE user_id = ?').run(userId);
+        return true;
+    } catch (e) { return false; }
+};
+
+db.isBlacklisted = (userId) => {
+    try {
+        const row = db.prepare('SELECT user_id FROM leaderboard_blacklist WHERE user_id = ?').get(userId);
+        return !!row;
+    } catch (e) { return false; }
+};
+
+// OVERRIDE getTopBalances to exclude blacklisted users
+db.getTopBalances = (limit = 10) => {
+    try {
+        return db.prepare(`
+            SELECT user_id, uang_jajan 
+            FROM user_economy 
+            WHERE user_id NOT IN (SELECT user_id FROM leaderboard_blacklist)
+            ORDER BY uang_jajan DESC 
+            LIMIT ?
+        `).all(limit);
+    } catch (e) { return []; }
+};
 
 module.exports = db;
 
