@@ -20,8 +20,8 @@ module.exports = {
             const contribution = Math.floor(betAmount * 0.02);
             if (contribution > 0) db.addJackpot(contribution);
 
-            // 0.05% Chance (1 in 2000)
-            if (Math.random() < 0.0005) {
+            // 0.0001% Chance (1 in 1,000,000) - Reduced from 1 in 100,000
+            if (Math.random() < 0.000001) {
                 const jackpotPool = db.getJackpot();
                 if (jackpotPool > 0) {
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(jackpotPool, user);

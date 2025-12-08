@@ -62,8 +62,9 @@ try {
 
 // --- INITIALIZE AUTO-CLEANUP SCHEDULER ---
 try {
-    const { initCleanupScheduler } = require('./utils/scheduler.js');
+    const { initCleanupScheduler, initLeaderboardScheduler } = require('./utils/scheduler.js');
     initCleanupScheduler();
+    initLeaderboardScheduler(client);
 } catch (err) {
     console.error('❌ Gagal menjalankan Scheduler:', err);
 }

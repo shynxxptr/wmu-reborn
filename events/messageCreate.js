@@ -462,6 +462,21 @@ module.exports = {
             return;
         }
 
+        // !setleaderboardrole <rank> <role_id>
+        if (content.startsWith('!setleaderboardrole ')) {
+            if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin Only!');
+            const args = content.split(' ');
+            const rank = parseInt(args[1]);
+            const roleId = args[2];
+
+            if (![1, 2, 3].includes(rank) || !roleId) {
+                return message.reply('❌ Format: `!setleaderboardrole <1/2/3> <role_id>`');
+            }
+
+            db.setSystemVar(`lb_role_${rank}`, roleId);
+            return message.reply(`✅ **Role Rank ${rank}** diset ke ID: \`${roleId}\`.`);
+        }
+
         // --- 9. HELP COMMAND ---
         if (content === '!kantin help' || content === '!kantinhelp' || content === '!help') {
             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
