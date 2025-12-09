@@ -3,3 +3,5 @@ config.json
 .env
 .DS_Store
 *.log
+*.db
+custom_roles.db
