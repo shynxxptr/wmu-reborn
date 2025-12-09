@@ -524,5 +524,37 @@ db.getTopBalances = (limit = 10) => {
     } catch (e) { return []; }
 };
 
+// 19. LUCK PENALTY SYSTEM
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_luck_penalty (
+        user_id TEXT PRIMARY KEY,
+        penalty_value INTEGER DEFAULT 0
+    )
+`);
+
+// Configurable Threshold
+try {
+    if (db.getSystemVar('auto_penalty_threshold', -1) === -1) {
+        db.setSystemVar('auto_penalty_threshold', 1000000000); // 1 Milyar
+    }
+} catch (e) { }
+
+db.setPenalty = (userId, value) => {
+    try {
+        db.prepare(`
+            INSERT INTO user_luck_penalty (user_id, penalty_value) VALUES (?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET penalty_value = ?
+        `).run(userId, value, value);
+        return true;
+    } catch (e) { return false; }
+};
+
+db.getPenalty = (userId) => {
+    try {
+        const row = db.prepare('SELECT penalty_value FROM user_luck_penalty WHERE user_id = ?').get(userId);
+        return row ? row.penalty_value : 0;
+    } catch (e) { return 0; }
+};
+
 module.exports = db;
 

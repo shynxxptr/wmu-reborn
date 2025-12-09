@@ -65,13 +65,29 @@ module.exports = {
             return message.reply(`🙏 **Doa Terkabul!**\nMang Ujang mendoakanmu... Hoki bertambah **${luckBoost}%** selama 7 menit! 🍀`);
         }
 
-        // Helper to get active luck
-        const getLuck = (uid) => {
+        // Helper to get effective luck (Base + Penalty)
+        const getEffectiveLuck = (uid) => {
+            // 1. Base Luck from Doa Ujang
+            let luck = 0;
             const u = db.prepare('SELECT luck_boost, luck_expiration FROM user_economy WHERE user_id = ?').get(uid);
             if (u && u.luck_expiration > Date.now()) {
-                return u.luck_boost;
+                luck = u.luck_boost;
             }
-            return 0;
+
+            // 2. Manual Penalty
+            const penalty = db.getPenalty(uid);
+            luck += penalty; // penalty is usually negative, e.g. -50
+
+            // 3. Auto Penalty (High Balance)
+            const userBal = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(uid);
+            if (userBal) {
+                const threshold = db.getSystemVar('auto_penalty_threshold', 1000000000); // Default 1Milyar
+                if (userBal.uang_jajan > threshold) {
+                    luck -= 90; // Massive penalty for rich people
+                }
+            }
+
+            return luck;
         };
 
         // !coinflip <amount> <h/t>
@@ -90,7 +106,7 @@ module.exports = {
             handleJackpot(amount, userId);
 
             // Luck Logic
-            const luck = getLuck(userId);
+            const luck = getEffectiveLuck(userId);
             const baseChance = 0.5;
             const winChance = baseChance + (luck / 100); // e.g. 0.5 + 0.15 = 0.65
 
@@ -134,7 +150,7 @@ module.exports = {
 
             // Luck Logic for Slots
             // If lucky, chance to reroll bad result
-            const luck = getLuck(userId);
+            const luck = getEffectiveLuck(userId);
             const shouldReroll = luck > 0 && Math.random() < (luck / 100);
 
             let r1 = items[Math.floor(Math.random() * items.length)];
@@ -424,7 +440,18 @@ module.exports = {
 
             const generateGrid = (isFreeSpinMode) => {
                 // STREAK SYSTEM: Hot (5%), Cold (50%), Normal (45%)
-                const streakRoll = Math.random();
+                // MODIFIED: Apply Effective Luck to Streak
+                const luck = getEffectiveLuck(userId);
+
+                // If luck is very bad (e.g. -50 or lower), force Cold Streak
+                let streakRoll = Math.random();
+
+                if (luck <= -50) {
+                    streakRoll = 0.1; // Force Cold range (0.05 - 0.55)
+                } else if (luck >= 20) {
+                    streakRoll = 0.01; // Force Hot range (< 0.05) if very lucky
+                }
+
                 let scatterChance, multiChance, highChance;
 
                 // Boost chances slightly during Free Spins
@@ -432,6 +459,14 @@ module.exports = {
                     scatterChance = 0.03; // Higher chance to retrigger
                     multiChance = 0.08;   // More multipliers
                     highChance = 0.55;
+
+                    // Penalty during Free Spins too
+                    if (luck <= -50) {
+                        scatterChance = 0.001;
+                        multiChance = 0.01;
+                        highChance = 0.10;
+                    }
+
                 } else if (streakRoll < 0.05) {
                     // HOT STREAK (Rare)
                     scatterChance = 0.03;
@@ -649,7 +684,7 @@ module.exports = {
                 for (let r = 0; r < 5; r++) for (let c = 0; c < 6; c++) {
                     if (grid[r][c] === symbols.multi) {
                         // Reduced high multipliers chance
-                        const multis = [2, 2, 2, 5, 5, 10, 10, 25, 50]; 
+                        const multis = [2, 2, 2, 5, 5, 10, 10, 25, 50];
                         roundMulti += multis[Math.floor(Math.random() * multis.length)];
                     }
                 }
