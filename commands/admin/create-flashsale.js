@@ -1,5 +1,5 @@
-const { 
-    SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits 
+const {
+    SlashCommandBuilder, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits
 } = require('discord.js');
 const db = require('../../database.js');
 
@@ -7,13 +7,15 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('create-flashsale')
         .setDescription('Buka Ticket Box Flash Sale (Limited Slot).')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .addStringOption(o => o.setName('barang').setDescription('Nama Barang/Tiket').setRequired(true))
         .addStringOption(o => o.setName('harga').setDescription('Harga (Contoh: 50.000 / 100k)').setRequired(true))
         .addIntegerOption(o => o.setName('slot').setDescription('Jumlah Slot Tersedia').setMinValue(1).setRequired(true))
         .addStringOption(o => o.setName('deskripsi').setDescription('Keterangan tambahan').setRequired(false)),
 
     async execute(interaction) {
+        if (!db.isAdmin(interaction.user.id)) {
+            return interaction.reply({ content: '❌ Kamu tidak memiliki izin admin.', ephemeral: true });
+        }
         await interaction.deferReply({ ephemeral: true }); // Balas admin diam-diam
 
         const item = interaction.options.getString('barang');

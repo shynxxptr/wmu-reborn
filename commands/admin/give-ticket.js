@@ -10,14 +10,16 @@ module.exports = {
     data: new SlashCommandBuilder()
         .setName('give-ticket')
         .setDescription('Kirim tiket ke user (Mengurangi Stok).')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild)
         .addUserOption(o => o.setName('user').setDescription('Target').setRequired(true))
         .addStringOption(o => o.setName('jenis').setDescription('Tipe Tiket').setRequired(true).addChoices(...choices))
         .addIntegerOption(o => o.setName('jumlah').setDescription('Jml').setMinValue(1)),
 
     async execute(interaction, client) { // Note: db sudah di-require di atas, tapi param client butuh untuk live report
+        if (!db.isAdmin(interaction.user.id)) {
+            return interaction.reply({ content: '❌ Kamu tidak memiliki izin admin.', ephemeral: true });
+        }
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
-        
+
         const user = interaction.options.getUser('user');
         const jenis = interaction.options.getString('jenis');
         const qty = interaction.options.getInteger('jumlah') || 1;
@@ -36,7 +38,7 @@ module.exports = {
         const trx = db.transaction(() => {
             // Update Sold Count
             db.prepare('UPDATE ticket_stock SET sold = sold + ? WHERE jenis_tiket = ?').run(qty, jenis);
-            
+
             // Masukkan ke Tas User
             db.prepare(`
                 INSERT INTO inventaris (user_id, jenis_tiket, jumlah) VALUES (?, ?, ?)

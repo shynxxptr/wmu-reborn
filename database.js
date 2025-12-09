@@ -470,6 +470,48 @@ db.isBlacklisted = (userId) => {
 };
 
 // OVERRIDE getTopBalances to exclude blacklisted users
+// 18. BOT ADMINS
+db.exec(`
+    CREATE TABLE IF NOT EXISTS bot_admins (
+        user_id TEXT PRIMARY KEY,
+        added_by TEXT,
+        added_at INTEGER
+    )
+`);
+
+// Seed Initial Admin
+try {
+    const initialAdmin = '1353265172973617204';
+    db.prepare('INSERT OR IGNORE INTO bot_admins (user_id, added_by, added_at) VALUES (?, ?, ?)').run(initialAdmin, 'SYSTEM', Date.now());
+} catch (e) { }
+
+db.addAdmin = (userId, addedBy) => {
+    try {
+        db.prepare('INSERT OR IGNORE INTO bot_admins (user_id, added_by, added_at) VALUES (?, ?, ?)').run(userId, addedBy, Date.now());
+        return true;
+    } catch (e) { return false; }
+};
+
+db.removeAdmin = (userId) => {
+    try {
+        db.prepare('DELETE FROM bot_admins WHERE user_id = ?').run(userId);
+        return true;
+    } catch (e) { return false; }
+};
+
+db.isAdmin = (userId) => {
+    try {
+        const row = db.prepare('SELECT user_id FROM bot_admins WHERE user_id = ?').get(userId);
+        return !!row;
+    } catch (e) { return false; }
+};
+
+db.getAdmins = () => {
+    try {
+        return db.prepare('SELECT * FROM bot_admins').all();
+    } catch (e) { return []; }
+};
+
 db.getTopBalances = (limit = 10) => {
     try {
         return db.prepare(`

@@ -3,14 +3,17 @@ const { SlashCommandBuilder, PermissionFlagsBits, MessageFlags } = require('disc
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('test-welcome')
-        .setDescription('Simulasi member baru masuk (Test Welcome Message).')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild), // Hanya Admin
+        .setDescription('Simulasi member baru masuk (Test Welcome Message).'),
 
     async execute(interaction, client) {
+        const db = require('../../database.js');
+        if (!db.isAdmin(interaction.user.id)) {
+            return interaction.reply({ content: '❌ Kamu tidak memiliki izin admin.', ephemeral: true });
+        }
         // 1. Balas dulu biar admin tau command jalan
-        await interaction.reply({ 
-            content: '🔄 Menjalankan simulasi welcome...', 
-            flags: [MessageFlags.Ephemeral] 
+        await interaction.reply({
+            content: '🔄 Menjalankan simulasi welcome...',
+            flags: [MessageFlags.Ephemeral]
         });
 
         try {
@@ -18,7 +21,7 @@ module.exports = {
             // Kita cari file event yang sudah kita load di index.js
             // Tapi karena sulit akses file event langsung dari sini, kita panggil manual saja logic-nya
             // Cara paling gampang: Emit event palsu ke Client
-            
+
             // Member palsu = diri sendiri (Admin yang ngetik command)
             const fakeMember = interaction.member;
 

@@ -5,10 +5,12 @@ const { TIKET_CONFIG } = require('../../utils/helpers.js');
 module.exports = {
     data: new SlashCommandBuilder()
         .setName('admin-check-inventory')
-        .setDescription('Audit: Lihat semua tiket yang beredar.')
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageGuild),
+        .setDescription('Audit: Lihat semua tiket yang beredar.'),
 
     async execute(interaction) {
+        if (!db.isAdmin(interaction.user.id)) {
+            return interaction.reply({ content: '❌ Kamu tidak memiliki izin admin.', ephemeral: true });
+        }
         await interaction.deferReply({ flags: [MessageFlags.Ephemeral] });
 
         // Ambil semua data inventaris yang > 0
@@ -34,7 +36,7 @@ module.exports = {
             // Tampilkan max 10 holder per tiket biar ga spam
             const displayList = holders.slice(0, 10).join('\n');
             const sisa = holders.length > 10 ? `\n...dan ${holders.length - 10} lainnya.` : '';
-            
+
             embed.addFields({
                 name: `${label} (Total User: ${holders.length})`,
                 value: displayList + sisa || 'N/A'
