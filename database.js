@@ -556,5 +556,16 @@ db.getPenalty = (userId) => {
     } catch (e) { return 0; }
 };
 
+// 20. BANSOS SYSTEM
+db.distributeBansos = (amount) => {
+    try {
+        const info = db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ?').run(amount);
+        return { success: true, changes: info.changes };
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Database error' };
+    }
+};
+
 module.exports = db;
 
