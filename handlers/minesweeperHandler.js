@@ -7,8 +7,8 @@ const db = require('../database.js');
 const activeMines = new Map();
 
 // Configuration
-const GRID_SIZE = 20; // 5x4 Grid to fit Cashout button in 5th row
-const BOMB_COUNT = 5;
+const GRID_SIZE = 16; // 4x4 Grid to fit Cashout button in 5th row
+const BOMB_COUNT = 4;
 
 // Multiplier Calculation (Simple exponential or linear based on odds)
 // Odds = Total / Safe_Remaining
@@ -32,8 +32,7 @@ module.exports = {
         const rawBet = args[1];
         if (!rawBet) return message.reply('❌ Format: `!bom <bet>` atau `!bom all`');
 
-        const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-        const balance = user ? user.uang_jajan : 0;
+        const balance = db.getBalance(userId);
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
@@ -46,7 +45,8 @@ module.exports = {
         if (balance < bet) return message.reply('💸 **Uang gak cukup!**');
 
         // Deduct Bet
-        db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(bet, userId);
+        const updateRes = db.updateBalance(userId, -bet);
+        const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
 
         // Generate Grid
         const grid = Array(GRID_SIZE).fill(0);
@@ -63,8 +63,8 @@ module.exports = {
         const rows = [];
         for (let i = 0; i < 4; i++) { // 4 Rows
             const row = new ActionRowBuilder();
-            for (let j = 0; j < 5; j++) { // 5 Cols
-                const idx = i * 5 + j;
+            for (let j = 0; j < 4; j++) { // 4 Cols
+                const idx = i * 4 + j;
                 row.addComponents(
                     new ButtonBuilder()
                         .setCustomId(`mine_click_${idx}`)
@@ -99,7 +99,8 @@ module.exports = {
             revealed: Array(GRID_SIZE).fill(false),
             multiplier: 1.0,
             bombsCount: BOMB_COUNT,
-            messageId: msg.id
+            messageId: msg.id,
+            walletType
         });
     },
 
@@ -116,11 +117,11 @@ module.exports = {
         // CASHOUT
         if (interaction.customId === 'mine_cashout') {
             const winAmount = Math.floor(game.bet * game.multiplier);
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, game.userId);
+            db.updateBalance(game.userId, winAmount);
 
             const embed = new EmbedBuilder()
                 .setTitle('💰 CASHOUT SUKSES!')
-                .setDescription(`Kamu berhasil membawa pulang **Rp ${winAmount.toLocaleString('id-ID')}**!\nMultiplier Akhir: **${game.multiplier.toFixed(2)}x**`)
+                .setDescription(`Kamu berhasil membawa pulang **Rp ${winAmount.toLocaleString('id-ID')}**!\nMultiplier Akhir: **${game.multiplier.toFixed(2)}x**\n*${game.walletType}*`)
                 .setColor('#00FF00');
 
             // Reveal all bombs
@@ -141,7 +142,7 @@ module.exports = {
             // BOMB! GAME OVER
             const embed = new EmbedBuilder()
                 .setTitle('💥 DUAR! KENA BOM!')
-                .setDescription(`Sayang sekali, uang **Rp ${game.bet.toLocaleString('id-ID')}** hangus terbakar. 💸`)
+                .setDescription(`Sayang sekali, uang **Rp ${game.bet.toLocaleString('id-ID')}** hangus terbakar. 💸\n*${game.walletType}*`)
                 .setColor('#FF0000');
 
             const rows = this.revealAll(game, false, idx);
@@ -178,8 +179,8 @@ module.exports = {
         const rows = [];
         for (let i = 0; i < 4; i++) { // 4 Rows
             const row = new ActionRowBuilder();
-            for (let j = 0; j < 5; j++) { // 5 Cols
-                const idx = i * 5 + j;
+            for (let j = 0; j < 4; j++) { // 4 Cols
+                const idx = i * 4 + j;
                 const btn = new ButtonBuilder()
                     .setCustomId(`mine_click_${idx}`)
                     .setStyle(ButtonStyle.Secondary);
@@ -209,8 +210,8 @@ module.exports = {
         const rows = [];
         for (let i = 0; i < 4; i++) { // 4 Rows
             const row = new ActionRowBuilder();
-            for (let j = 0; j < 5; j++) { // 5 Cols
-                const idx = i * 5 + j;
+            for (let j = 0; j < 4; j++) { // 4 Cols
+                const idx = i * 4 + j;
                 const btn = new ButtonBuilder()
                     .setCustomId(`mine_disabled_${idx}`)
                     .setDisabled(true);

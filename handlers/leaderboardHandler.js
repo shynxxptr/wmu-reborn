@@ -1,29 +1,62 @@
 const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const Canvas = require('canvas');
 
-async function showLeaderboard(source, db) {
+async function showLeaderboard(source, db, type = 'global', eventId = null) {
     // Determine if source is Interaction or Message
     const isInteraction = source.commandName !== undefined;
     const user = isInteraction ? source.user : source.author;
     const channel = source.channel;
+    const guild = source.guild;
 
     // Initial Reply/Defer
-    let msg;
     if (isInteraction) {
-        // Assumes deferReply() was called in the command file, or we call it here if not?
-        // Let's assume the caller handles deferral or we check.
         if (!source.deferred && !source.replied) await source.deferReply();
-    } else {
-        // For message, we send a placeholder or just wait
-        // msg = await source.reply('🔄 Memuat leaderboard...');
     }
 
-    // 1. Fetch Top 100 Users
-    const topUsers = db.getTopBalances(100);
+    // 1. Fetch Data based on Type
+    let topUsers = [];
+    let title = '🏆 Top Sultan Mang Ujang';
+    let subTitlePrefix = 'Global Leaderboard';
+
+    if (type === 'event') {
+        if (!eventId) {
+            const activeEvent = db.getActiveEvent();
+            if (activeEvent) eventId = activeEvent.id;
+        }
+
+        if (!eventId) {
+            const text = '❌ Tidak ada event aktif.';
+            return isInteraction ? source.editReply(text) : source.reply(text);
+        }
+
+        const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+        topUsers = db.getEventLeaderboard(eventId);
+        title = `🏆 ${event ? event.name : 'Event Leaderboard'}`;
+        subTitlePrefix = 'Event Rank';
+    } else if (type === 'server') {
+        // Fetch more global users then filter by guild
+        // Note: This is inefficient for huge DBs, but fine for now.
+        // Better approach: Add guild_id to user_economy or fetch all guild members first.
+        // Given current structure, we fetch top 500 global and filter.
+        const globalTop = db.getTopBalances(500);
+
+        // We need to ensure guild members are cached
+        if (guild) {
+            await guild.members.fetch();
+            topUsers = globalTop.filter(u => guild.members.cache.has(u.user_id));
+        } else {
+            topUsers = globalTop; // Fallback if no guild context
+        }
+        title = `🏆 Top Sultan ${guild ? guild.name : 'Server'}`;
+        subTitlePrefix = 'Server Leaderboard';
+    } else {
+        // Global
+        topUsers = db.getTopBalances(100);
+    }
+
     if (topUsers.length === 0) {
-        const text = 'Belum ada data ekonomi yang tercatat.';
-        if (isInteraction) return source.editReply(text);
-        else return source.reply(text);
+        const text = 'Belum ada data leaderboard yang tercatat.';
+        return isInteraction ? source.editReply(text) : source.reply(text);
     }
 
     const USERS_PER_PAGE = 10;
@@ -42,12 +75,12 @@ async function showLeaderboard(source, db) {
         // Title
         ctx.fillStyle = '#FFFFFF';
         ctx.font = 'bold 36px sans-serif';
-        ctx.fillText("🏆 Top Sultan Mang Ujang", 30, 50);
+        ctx.fillText(title, 30, 50);
 
         // Subtitle
         ctx.font = '20px sans-serif';
         ctx.fillStyle = '#AAAAAA';
-        ctx.fillText(`Halaman ${pageIndex + 1} dari ${totalPages}`, 30, 80);
+        ctx.fillText(`${subTitlePrefix} • Halaman ${pageIndex + 1} dari ${totalPages}`, 30, 80);
 
         // Line Separator
         ctx.strokeStyle = '#00AAFF';
@@ -74,7 +107,6 @@ async function showLeaderboard(source, db) {
             let avatarUrl = null;
 
             try {
-                // Use client from source
                 const client = source.client;
                 const discordUser = await client.users.fetch(u.user_id).catch(() => null);
                 if (discordUser) {
@@ -115,10 +147,10 @@ async function showLeaderboard(source, db) {
             ctx.fillText(username, 150, y + 15);
 
             // Draw Balance
-            ctx.fillStyle = '#00FF00'; // Green money
+            ctx.fillStyle = type === 'event' ? '#00FFFF' : '#00FF00'; // Cyan for Event, Green for Money
             ctx.font = '20px sans-serif';
-            const { formatMoney } = require('../utils/helpers.js');
-            ctx.fillText(`Rp ${formatMoney(u.uang_jajan)}`, 150, y + 45);
+            const { formatMoneyShort } = require('../utils/helpers.js');
+            ctx.fillText(`Rp ${formatMoneyShort(u.uang_jajan)}`, 150, y + 45);
 
             // Draw Progress Bar Background
             ctx.fillStyle = '#444444';
@@ -126,7 +158,7 @@ async function showLeaderboard(source, db) {
 
             // Draw Progress Bar Fill
             const percentage = Math.min(1, Math.max(0, u.uang_jajan / maxBalance));
-            ctx.fillStyle = '#00AAFF';
+            ctx.fillStyle = type === 'event' ? '#FF00FF' : '#00AAFF'; // Magenta for Event, Blue for Money
             ctx.fillRect(400, y + 15, 250 * percentage, 15);
 
             y += 65; // Next Row

@@ -354,6 +354,20 @@ module.exports = {
 
         // --- 5. ADMIN COMMANDS ---
 
+        // !say <message> (Admin Chat)
+        if (content.startsWith('!say ') || content.startsWith('!mangujang ')) {
+            if (!message.member.permissions.has('Administrator')) return;
+
+            const text = message.content.split(' ').slice(1).join(' ');
+            if (!text) return;
+
+            try {
+                await message.delete();
+            } catch (e) { }
+
+            return message.channel.send(text);
+        }
+
         // !tambahsaldo @user <amount>
         if (content.startsWith('!tambahsaldo ')) {
             // Cek Permission Admin
@@ -421,10 +435,26 @@ module.exports = {
             return message.reply('✅ **RESET BERHASIL!**\nSemua uang user telah di-reset menjadi 0. Miskin berjamaah dimulai!');
         }
 
-        // --- 6. LEADERBOARD ---
+        // --- 6. EVENT SYSTEM ---
+        if (content.startsWith('!event')) {
+            const eventHandler = require('../handlers/eventHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await eventHandler.handleEvent(message, command, args);
+            return;
+        }
+
+        // --- 7. LEADERBOARD ---
         if (content.startsWith('!leaderboard') || content.startsWith('!lb') || content.startsWith('!top')) {
             const leaderboardHandler = require('../handlers/leaderboardHandler.js');
-            await leaderboardHandler.showLeaderboard(message, db);
+            const args = content.split(' ');
+            const typeArg = args[1] ? args[1].toLowerCase() : 'global';
+
+            let type = 'global';
+            if (typeArg === 'server' || typeArg === 'local') type = 'server';
+            if (typeArg === 'event') type = 'event';
+
+            await leaderboardHandler.showLeaderboard(message, db, type);
             return;
         }
 
@@ -499,6 +529,7 @@ module.exports = {
                             name: '💰 CARI UANG',
                             value:
                                 '`!cekdompet` - Cek saldo.\n' +
+                                '`!daily` - Ambil gaji harian (Rp 5k + Bonus).\n' +
                                 '`!bantujualan` - Kerja santai (Rp 5k-10k).\n' +
                                 '`!nyapulapangan` - Kerja sedang (Rp 3k-7k).\n' +
                                 '`!pungutsampah` - Kerja ringan (Rp 2k-5k).'

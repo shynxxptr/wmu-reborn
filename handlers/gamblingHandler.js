@@ -9,12 +9,39 @@ const doaCooldowns = new Map();
 const bigSlotCooldowns = new Map();
 // Active Slots Map
 const activeSlots = new Map();
+// Cooldown Map for Math
+const mathCooldowns = new Map();
+const coinflipCooldowns = new Map();
+const slotsCooldowns = new Map();
+const patchNoteSeen = new Set();
 
 module.exports = {
     async handleGambling(message, command, args) {
         const userId = message.author.id;
         const content = message.content.toLowerCase().trim();
         const now = Date.now();
+
+        // --- PATCH NOTE (ONE TIME) ---
+        if (!patchNoteSeen.has(userId)) {
+            patchNoteSeen.add(userId);
+            const patchEmbed = new EmbedBuilder()
+                .setTitle('📢 UPDATE WARUNG MANG UJANG 📢')
+                .setDescription(
+                    `**Fitur Baru & Balancing:**\n` +
+                    `1. **!math**: Profit naik (Easy 20%, Med 50%, Hard 100%). Ada Cooldown 20s.\n` +
+                    `2. **!bs (BigSlot)**: Streak lebih ramah, Max Bet 100jt (Buy Max 1jt), Cooldown 20s.\n` +
+                    `3. **!saham**: Crash lebih jarang (3%), Max Bet 100jt, Cooldown 20s.\n` +
+                    `4. **!cf (Coinflip)**: Payout jadi **2x** (Profit 100%), Cooldown 5s.\n` +
+                    `5. **!slots**: Cooldown 10s, Max Bet 100jt.\n\n` +
+                    `*Pesan ini akan hilang dalam 60 detik.*`
+                )
+                .setColor('#00FF00')
+                .setFooter({ text: 'Selamat bermain & jangan rungkad!' });
+
+            message.channel.send({ embeds: [patchEmbed] }).then(msg => {
+                setTimeout(() => msg.delete().catch(() => { }), 60000);
+            });
+        }
 
         // Helper for Global Jackpot
         const handleJackpot = (betAmount, user) => {
@@ -23,17 +50,16 @@ module.exports = {
             if (contribution > 0) db.addJackpot(contribution);
 
             // 0.0001% Chance (1 in 1,000,000) - Reduced from 1 in 100,000
-            if (Math.random() < 0.000001) {
+            if (Math.random() < 0.0000001) {
                 const jackpotPool = db.getJackpot();
                 if (jackpotPool > 0) {
+                    // Jackpot always goes to MAIN WALLET (Bonus)
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(jackpotPool, user);
                     db.resetJackpot();
                     message.channel.send(`🚨 **GLOBAL JACKPOT ALERT** 🚨\n🎉 <@${user}> BARUSAN JEBOL JACKPOT SEBESAR **Rp ${formatMoney(jackpotPool)}**! 🎉\n*Sultan mendadak!* 💸`);
                 }
             }
         };
-
-
 
         // !doaujang
         if (command === '!doaujang') {
@@ -45,14 +71,14 @@ module.exports = {
             }
 
             const cost = 2000;
-            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
+            const currentBalance = db.getBalance(userId);
 
-            if (!user || user.uang_jajan < cost) {
+            if (currentBalance < cost) {
                 return message.reply(`💸 **Sedekah kurang!** Butuh Rp ${formatMoney(cost)} buat beli dupa.`);
             }
 
             // Deduct cost
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(cost, userId);
+            db.updateBalance(userId, -cost);
 
             // Apply Luck
             const luckBoost = Math.floor(Math.random() * 11) + 10; // 10% - 20%
@@ -98,9 +124,22 @@ module.exports = {
             if (isNaN(amount) || amount <= 0 || !['head', 'tail', 'h', 't'].includes(choice)) {
                 return message.reply('❌ Format: `!cf <jumlah> <head/tail>`');
             }
+            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
 
-            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
-            if (!user || user.uang_jajan < amount) return message.reply('💸 **Uang gak cukup!** Jangan maksa judi.');
+            // Cooldown Check (5 Seconds)
+            const cfCooldown = 5000;
+            const lastCf = coinflipCooldowns.get(userId) || 0;
+            if (now - lastCf < cfCooldown) {
+                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastCf + cfCooldown) / 1000)}:R> lagi.`);
+            }
+            coinflipCooldowns.set(userId, now);
+
+            const currentBalance = db.getBalance(userId);
+            if (currentBalance < amount) return message.reply('💸 **Uang gak cukup!** Jangan maksa judi.');
+
+            // Deduct Upfront
+            const updateRes = db.updateBalance(userId, -amount);
+            const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
 
             // Jackpot Check
             handleJackpot(amount, userId);
@@ -122,12 +161,13 @@ module.exports = {
             }
 
             if (isWin) {
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
+                const winAmount = amount * 2;
+                db.updateBalance(userId, winAmount);
                 const luckMsg = luck > 0 ? ` (🍀 Luck +${luck}%)` : '';
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${formatMoney(amount)}! 🎉${luckMsg}`);
+                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${formatMoney(winAmount)}! 🎉${luckMsg}\n*${walletType}*`);
             } else {
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu KALAH Rp ${formatMoney(amount)}. Sad. 📉`);
+                // Already deducted
+                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu KALAH Rp ${formatMoney(amount)}. Sad. 📉\n*${walletType}*`);
             }
         }
 
@@ -135,12 +175,22 @@ module.exports = {
         if (command === '!slots') {
             const amount = parseInt(args[1]);
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Format: `!slots <jumlah>`');
+            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
 
-            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
-            if (!user || user.uang_jajan < amount) return message.reply('💸 **Uang gak cukup!**');
+            // Cooldown Check (10 Seconds)
+            const slotCooldown = 10000;
+            const lastSlot = slotsCooldowns.get(userId) || 0;
+            if (now - lastSlot < slotCooldown) {
+                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastSlot + slotCooldown) / 1000)}:R> lagi.`);
+            }
+            slotsCooldowns.set(userId, now);
+
+            const currentBalance = db.getBalance(userId);
+            if (currentBalance < amount) return message.reply('💸 **Uang gak cukup!**');
 
             // Deduct bet first
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
+            const updateRes = db.updateBalance(userId, -amount);
+            const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
 
             // Jackpot Check
             handleJackpot(amount, userId);
@@ -167,7 +217,6 @@ module.exports = {
             // Helper for delay
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
-            // Initial State: All spinning
             // Initial State: All spinning
             const spinning = '🌀';
 
@@ -200,12 +249,13 @@ module.exports = {
 
             const winAmount = amount * winMultiplier;
             if (winMultiplier > 0) {
-                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, userId); // Add win (original bet already deducted)
+                db.updateBalance(userId, winAmount); // Add win (original bet already deducted)
             }
 
             let resultText = winMultiplier > 0 ? `🎉 **WIN!** (+Rp ${formatMoney(winAmount)})` : '📉 **LOSE**';
             if (winMultiplier === 5) resultText = `🚨 **JACKPOT!!!** (+Rp ${formatMoney(winAmount)})`;
             if (luck > 0) resultText += ` 🍀`;
+            resultText += `\n*${walletType}*`;
 
             const finalColor = winMultiplier > 0 ? '#00ff00' : '#ff0000';
             await msg.edit({ embeds: [createEmbed(r1, r2, r3, resultText, finalColor)] });
@@ -229,26 +279,38 @@ module.exports = {
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
             if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
 
-            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
-            if (!user || user.uang_jajan < amount) return message.reply('💸 **Uang gak cukup!** Kerja dulu sana.');
+            // Cooldown Check (20 Seconds)
+            const mathCooldownTime = 20000;
+            const lastMath = mathCooldowns.get(userId) || 0;
+            if (now - lastMath < mathCooldownTime) {
+                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastMath + mathCooldownTime) / 1000)}:R> lagi.`);
+            }
+            mathCooldowns.set(userId, now);
+
+            const currentBalance = db.getBalance(userId);
+            if (currentBalance < amount) return message.reply('💸 **Uang gak cukup!** Kerja dulu sana.');
 
             // Deduct bet
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
+            const updateRes = db.updateBalance(userId, -amount);
+            const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
 
             // Determine Difficulty & Multiplier
             let difficulty = 'easy';
-            let multiplier = 1.5;
-            let timeLimit = 10000; // 10 seconds
+            let multiplier = 1.2; // 20% Profit
+            let timeLimit = 15000; // 15 seconds
 
-            if (amount >= 50000000) {
+            if (amount >= 20000000) {
                 difficulty = 'extreme';
-                multiplier = 5;
+                multiplier = 3.0; // 200% Profit
+                timeLimit = 5000; // 5 seconds
             } else if (amount >= 10000000) {
                 difficulty = 'hard';
-                multiplier = 3;
+                multiplier = 2.0; // 100% Profit
+                timeLimit = 7000; // 7 seconds
             } else if (amount >= 1000000) {
                 difficulty = 'medium';
-                multiplier = 2;
+                multiplier = 1.5; // 50% Profit
+                timeLimit = 10000; // 10 seconds
             }
 
             // Generate Question
@@ -345,16 +407,16 @@ module.exports = {
                 const ans = parseFloat(m.content);
                 if (ans === a) {
                     const winAmount = Math.floor(amount * multiplier);
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, userId);
-                    m.reply(`✅ **BENAR!** Kamu menang Rp ${formatMoney(winAmount)}! 🎉`);
+                    db.updateBalance(userId, winAmount);
+                    m.reply(`✅ **BENAR!** Kamu menang Rp ${formatMoney(winAmount)}! 🎉\n*${walletType}*`);
                 } else {
-                    m.reply(`❌ **SALAH!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.`);
+                    m.reply(`❌ **SALAH!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.\n*${walletType}*`);
                 }
             });
 
             collector.on('end', collected => {
                 if (collected.size === 0) {
-                    message.reply(`⏰ **WAKTU HABIS!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.`);
+                    message.reply(`⏰ **WAKTU HABIS!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.\n*${walletType}*`);
                 }
             });
         }
@@ -362,7 +424,7 @@ module.exports = {
         // !bs / !bigslot (Gates of Mang Ujang) - AUTO/TURBO VERSION
         if (command === '!bs' || command === '!bigslot') {
             // COOLDOWN CHECK
-            const bsCooldown = 10000; // 10 Detik
+            const bsCooldown = 20000; // 20 Detik
             const lastBs = bigSlotCooldowns.get(userId) || 0;
             if (now - lastBs < bsCooldown) {
                 return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastBs + bsCooldown) / 1000)}:R> lagi.`);
@@ -388,6 +450,8 @@ module.exports = {
             else amount = parseInt(rawAmount);
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
+            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
+            if (isBuy && amount > 1000000) return message.reply('❌ Maksimal bet untuk fitur Buy adalah 1 Juta (Total 100 Juta)!');
 
             argsIdx++;
             let mode = 'normal'; // normal, auto, turbo
@@ -403,15 +467,18 @@ module.exports = {
                 if (args[argsIdx] && !isNaN(args[argsIdx])) requestedSpins = parseInt(args[argsIdx]);
             }
 
-            // Limit Spins
-            if (requestedSpins > 100) requestedSpins = 100;
+            // Limit Spins (Strict 10, 30, 50)
+            const allowedSpins = [10, 30, 50];
+            if ((mode === 'auto' || mode === 'turbo') && !allowedSpins.includes(requestedSpins)) {
+                return message.reply('❌ **Auto/Turbo Spin** cuma boleh **10, 30, atau 50** spin!');
+            }
             if (requestedSpins < 1) requestedSpins = 1;
 
             const costPerSpin = isBuy ? amount * 100 : amount;
 
             // Initial Check
-            const userCheck = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-            if (!userCheck || userCheck.uang_jajan < costPerSpin) {
+            const currentBalance = db.getBalance(userId);
+            if (currentBalance < costPerSpin) {
                 return message.reply(`💸 **Uang gak cukup!** Butuh Rp ${formatMoney(costPerSpin)} per spin.`);
             }
 
@@ -447,9 +514,9 @@ module.exports = {
                 let streakRoll = Math.random();
 
                 if (luck <= -50) {
-                    streakRoll = 0.1; // Force Cold range (0.05 - 0.55)
+                    streakRoll = 0.2; // Force Cold range (0.15 - 0.45)
                 } else if (luck >= 20) {
-                    streakRoll = 0.01; // Force Hot range (< 0.05) if very lucky
+                    streakRoll = 0.01; // Force Hot range (< 0.15) if very lucky
                 }
 
                 let scatterChance, multiChance, highChance;
@@ -467,21 +534,21 @@ module.exports = {
                         highChance = 0.10;
                     }
 
-                } else if (streakRoll < 0.05) {
-                    // HOT STREAK (Rare)
-                    scatterChance = 0.03;
-                    multiChance = 0.05;
-                    highChance = 0.50;
-                } else if (streakRoll < 0.55) {
-                    // COLD STREAK (Common)
-                    scatterChance = 0.005;
-                    multiChance = 0.01;
-                    highChance = 0.25;
+                } else if (streakRoll < 0.15) {
+                    // HOT STREAK (15%)
+                    scatterChance = 0.05;
+                    multiChance = 0.07;
+                    highChance = 0.58;
+                } else if (streakRoll < 0.35) {
+                    // COLD STREAK (20%) - Reduced from 30%
+                    scatterChance = 0.008;
+                    multiChance = 0.015;
+                    highChance = 0.30;
                 } else {
-                    // NORMAL
-                    scatterChance = 0.015;
-                    multiChance = 0.02;
-                    highChance = 0.40;
+                    // NORMAL (65%) - Increased from 55%
+                    scatterChance = 0.025;
+                    multiChance = 0.04;
+                    highChance = 0.47;
                 }
 
                 const grid = [];
@@ -560,6 +627,7 @@ module.exports = {
             let freeSpinsQueue = 0;
             let spinIndex = 0;
             let accumulatedMultiplier = 0; // For Free Spins
+            let walletType = '';
 
             const MAX_WIN_CAP = amount * 5000;
             let isMaxWinReached = false;
@@ -587,13 +655,14 @@ module.exports = {
 
                 // Check Balance for Paid Spins
                 if (!isFreeSpin) {
-                    const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-                    if (user.uang_jajan < currentCost) {
+                    const currentBal = db.getBalance(userId);
+                    if (currentBal < currentCost) {
                         await message.channel.send(`⚠️ **Stop!** Uang habis di spin ke-${spinIndex}.`);
                         break;
                     }
                     // Deduct
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(currentCost, userId);
+                    const updateRes = db.updateBalance(userId, -currentCost);
+                    walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
                     totalSpent += currentCost;
                     handleJackpot(currentCost, userId);
                 }
@@ -712,7 +781,7 @@ module.exports = {
 
                 // Payout
                 if (spinWin > 0) {
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(spinWin, userId);
+                    db.updateBalance(userId, spinWin);
                     totalWon += spinWin;
                 }
 
@@ -734,105 +803,44 @@ module.exports = {
                     await delay(500);
                 } else {
                     await msg.edit({ embeds: [renderEmbed(grid, amount, status, resultText, log, color)] });
-                    await delay(1500);
+                    await delay(1000);
                 }
             }
 
-            // --- FINAL SUMMARY ---
-            if (isMaxWinReached) {
-                await message.channel.send({ files: [path.join(__dirname, '../assets/maxwin.png')] });
-                await delay(1000);
-                await message.channel.send(`🎉🎉 **MAX WIN REACHED!** 🎉🎉\nSelamat! Kamu mencapai kemenangan maksimal **5000x** (Rp ${formatMoney(MAX_WIN_CAP)})!`);
-            }
-
-            const profit = totalWon - totalSpent;
-
-
+            // Final Summary
+            const net = totalWon - totalSpent;
             const summaryEmbed = new EmbedBuilder()
-                .setTitle('📊 HASIL SPIN 📊')
-                .setColor(profit >= 0 ? '#00FF00' : '#FF0000')
+                .setTitle('🎰 SESSION ENDED')
+                .setColor(net >= 0 ? '#00FF00' : '#FF0000')
                 .addFields(
-                    { name: 'Total Spin', value: `${spinIndex}`, inline: true },
-                    { name: 'Total Modal', value: `Rp ${formatMoney(totalSpent)}`, inline: true },
-                    { name: 'Total Menang', value: `Rp ${formatMoney(totalWon)}`, inline: true },
-                    { name: profit >= 0 ? '📈 PROFIT' : '📉 RUGI', value: `Rp ${formatMoney(Math.abs(profit))}`, inline: false }
+                    { name: 'Total Spins', value: `${spinIndex}`, inline: true },
+                    { name: 'Total Spent', value: `Rp ${formatMoney(totalSpent)}`, inline: true },
+                    { name: 'Total Won', value: `Rp ${formatMoney(totalWon)}`, inline: true },
+                    { name: 'Net Profit', value: `Rp ${formatMoney(net)}`, inline: false },
+                    { name: 'Wallet', value: walletType || 'Unknown', inline: false }
                 );
+
+            if (isMaxWinReached) {
+                summaryEmbed.setDescription(`🚨 **MAX WIN REACHED!** (5000x Bet)\nSesi dihentikan otomatis.`);
+            }
 
             await message.channel.send({ embeds: [summaryEmbed] });
             activeSlots.delete(msg.id);
         }
-
-        // !raffle
-        if (command === '!raffle') {
-            const sub = args[1]?.toLowerCase();
-
-            if (sub === 'buy') {
-                const count = parseInt(args[2]);
-                if (isNaN(count) || count <= 0) return message.reply('❌ Format: `!raffle buy <jumlah>`');
-
-                const price = 5000;
-                const res = db.buyRaffleTicket(userId, count, price);
-
-                if (res.success) {
-                    return message.reply(`🎟️ **Sukses!** Kamu membeli **${count}** tiket raffle seharga Rp ${formatMoney(count * price)}.`);
-                } else {
-                    return message.reply(`❌ **Gagal:** ${res.error}`);
-                }
-            }
-
-            if (sub === 'info') {
-                const data = db.getRaffleData();
-                const userTickets = db.prepare("SELECT ticket_count FROM raffle_participants WHERE user_id = ?").get(userId)?.ticket_count || 0;
-
-                return message.reply(`🎟️ **RAFFLE INFO** 🎟️\n💰 **Total Pot:** Rp ${formatMoney(data.pot)}\n🎫 **Total Tiket:** ${data.totalTickets}\n👤 **Tiket Kamu:** ${userTickets}\n\n*Beli tiket dengan \`!raffle buy <jumlah>\` (Rp 5.000/tiket)*`);
-            }
-
-            if (sub === 'draw') {
-                // Admin check (You might want to replace this with a real admin check)
-                // For now, let's assume anyone can draw for testing, or check specific ID
-                // if (userId !== 'YOUR_ADMIN_ID') return; 
-
-                const data = db.getRaffleData();
-                if (data.totalTickets === 0) return message.reply('❌ Belum ada partisipan raffle.');
-
-                const winnerId = db.drawRaffleWinner();
-                if (winnerId) {
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(data.pot, winnerId);
-                    db.resetRaffle();
-
-                    return message.channel.send(`🎉 **RAFFLE DRAW** 🎉\nSelamat kepada <@${winnerId}> yang memenangkan POT sebesar **Rp ${formatMoney(data.pot)}**! 🥳💸`);
-                } else {
-                    return message.reply('❌ Terjadi kesalahan saat mengundi.');
-                }
-            }
-
-            return message.reply('❌ Command: `!raffle buy <n>`, `!raffle info`, `!raffle draw`');
-        }
     },
 
-    async handleSlotInteraction(interaction) {
-        if (!interaction.customId.startsWith('slot_')) return;
-
+    // Handle Button Interactions for Slot Stop
+    async handleSlotButton(interaction) {
         if (interaction.customId === 'slot_stop') {
-            const game = activeSlots.get(interaction.message.id);
-            if (!game) return interaction.reply({ content: '❌ Sesi spin sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+            const state = activeSlots.get(interaction.message.id);
+            if (!state) return interaction.reply({ content: '❌ Sesi tidak ditemukan.', flags: [MessageFlags.Ephemeral] });
 
-            if (interaction.user.id !== game.userId) {
-                return interaction.reply({ content: '❌ Bukan sesi spin kamu!', flags: [MessageFlags.Ephemeral] });
+            if (state.userId !== interaction.user.id) {
+                return interaction.reply({ content: '❌ Bukan sesi kamu!', flags: [MessageFlags.Ephemeral] });
             }
 
-            game.stopped = true;
+            state.stopped = true;
             await interaction.reply({ content: '🛑 Menghentikan auto spin...', flags: [MessageFlags.Ephemeral] });
-
-            // Disable button
-            const disabledRow = new ActionRowBuilder().addComponents(
-                new ButtonBuilder()
-                    .setCustomId('slot_stop')
-                    .setLabel('🛑 STOPPED')
-                    .setStyle(ButtonStyle.Danger)
-                    .setDisabled(true)
-            );
-            await interaction.message.edit({ components: [disabledRow] });
         }
     }
 };

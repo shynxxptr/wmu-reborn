@@ -5,6 +5,7 @@ const db = require('../database.js');
 // Key: messageId
 // Value: { userId, bet, multiplier, crashPoint, interval, isCashedOut, messageId }
 const activeCrash = new Map();
+const crashCooldowns = new Map();
 
 module.exports = {
     activeCrash,
@@ -16,8 +17,7 @@ module.exports = {
         const rawBet = args[1];
         if (!rawBet) return message.reply('❌ Format: `!saham <bet>` atau `!saham all`');
 
-        const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-        const balance = user ? user.uang_jajan : 0;
+        const balance = db.getBalance(userId);
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
@@ -27,10 +27,22 @@ module.exports = {
         else bet = parseInt(lower);
 
         if (isNaN(bet) || bet <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
+        if (bet > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
+
+        // Cooldown Check (20 Seconds)
+        const now = Date.now();
+        const cooldownTime = 20000;
+        const lastPlay = crashCooldowns.get(userId) || 0;
+        if (now - lastPlay < cooldownTime) {
+            return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastPlay + cooldownTime) / 1000)}:R> lagi.`);
+        }
+        crashCooldowns.set(userId, now);
+
         if (balance < bet) return message.reply('💸 **Uang gak cukup!**');
 
         // Deduct Bet
-        db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(bet, userId);
+        const updateRes = db.updateBalance(userId, -bet);
+        const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
 
         // Calculate Crash Point
         // Algorithm: 1% instant crash (1.00x).
@@ -52,7 +64,7 @@ module.exports = {
         const r = Math.random();
         let crashPoint = 1.00;
 
-        if (r > 0.05) { // 5% chance of instant crash (1.00x)
+        if (r > 0.03) { // 3% chance of instant crash (1.00x) - Reduced from 5%
             crashPoint = Math.floor(100 / (1 - Math.random())) / 100;
             // Apply House Edge? The formula 1/(1-r) is already fair-ish but infinite mean.
             // Let's use a simpler weighted random for game feel.
@@ -87,7 +99,8 @@ module.exports = {
             crashPoint,
             isCashedOut: false,
             messageId: msg.id,
-            startTime: Date.now()
+            startTime: Date.now(),
+            walletType
         };
 
         // Start Loop
@@ -155,11 +168,11 @@ module.exports = {
             clearInterval(game.interval);
 
             const winAmount = Math.floor(game.bet * game.multiplier);
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, game.userId);
+            db.updateBalance(game.userId, winAmount);
 
             const embed = new EmbedBuilder()
                 .setTitle('💰 PROFIT SUKSES!')
-                .setDescription(`Kamu berhasil JUAL di angka **${game.multiplier.toFixed(2)}x**!\nWin: **Rp ${winAmount.toLocaleString('id-ID')}**`)
+                .setDescription(`Kamu berhasil JUAL di angka **${game.multiplier.toFixed(2)}x**!\nWin: **Rp ${winAmount.toLocaleString('id-ID')}**\n*${game.walletType}*`)
                 .setColor('#00FF00');
 
             const row = new ActionRowBuilder().addComponents(
@@ -181,7 +194,7 @@ module.exports = {
         if (isCrash) {
             const embed = new EmbedBuilder()
                 .setTitle('📉 CRASH! ANJLOK!')
-                .setDescription(`Saham anjlok di angka **${game.crashPoint.toFixed(2)}x**.\nUang **Rp ${game.bet.toLocaleString('id-ID')}** hangus.`)
+                .setDescription(`Saham anjlok di angka **${game.crashPoint.toFixed(2)}x**.\nUang **Rp ${game.bet.toLocaleString('id-ID')}** hangus.\n*${game.walletType}*`)
                 .setColor('#FF0000');
 
             const row = new ActionRowBuilder().addComponents(

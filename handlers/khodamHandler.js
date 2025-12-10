@@ -217,6 +217,27 @@ module.exports = {
             db.deleteKhodam(userId);
             return message.reply(`👋 **${existing.khodam_name}** telah kembali ke alam gaib.`);
         }
+    },
+
+    getKhodamEffect(userId) {
+        const khodam = db.getKhodam(userId);
+        if (!khodam) return null;
+
+        // Define Effects based on Rarity or Specific Name
+        // Simple Effect: Bonus Daily/Beg based on Rarity
+        let effect = null;
+        switch (khodam.rarity) {
+            case 'Mythical': effect = 'all_20'; break; // +20% All
+            case 'Legendary': effect = 'all_15'; break; // +15% All
+            case 'Very Rare': effect = 'daily_10'; break; // +10% Daily
+            case 'Rare': effect = 'daily_5'; break; // +5% Daily
+            default: effect = null;
+        }
+
+        if (effect) {
+            return { name: khodam.khodam_name, effect };
+        }
+        return null;
     }
 };
 

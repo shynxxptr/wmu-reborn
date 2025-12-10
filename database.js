@@ -567,5 +567,188 @@ db.distributeBansos = (amount) => {
     }
 };
 
+db.addSaldo = (userId, amount) => {
+    try {
+        const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
+        if (!user) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(userId);
+        db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
+        return true;
+    } catch (e) { return false; }
+};
+
+// 21. EVENT SYSTEM (Dual Wallet)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT,
+        entry_fee INTEGER DEFAULT 0,
+        initial_balance INTEGER DEFAULT 0,
+        start_time INTEGER,
+        end_time INTEGER,
+        is_active INTEGER DEFAULT 1,
+        created_by TEXT
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS event_participants (
+        event_id INTEGER,
+        user_id TEXT,
+        event_balance INTEGER DEFAULT 0,
+        joined_at INTEGER,
+        PRIMARY KEY (event_id, user_id)
+    )
+`);
+
+// --- CORE DUAL WALLET LOGIC ---
+
+// Get active event for a user (if they joined)
+db.getUserActiveEvent = (userId) => {
+    try {
+        const event = db.prepare(`
+            SELECT e.*, ep.event_balance 
+            FROM events e 
+            JOIN event_participants ep ON e.id = ep.event_id 
+            WHERE ep.user_id = ? AND e.is_active = 1
+        `).get(userId);
+        return event;
+    } catch (e) { return null; }
+};
+
+// Get Balance (Smart Switch)
+db.getBalance = (userId) => {
+    try {
+        const event = db.getUserActiveEvent(userId);
+        if (event) return event.event_balance;
+
+        const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+        return user ? user.uang_jajan : 0;
+    } catch (e) { return 0; }
+};
+
+// Update Balance (Smart Switch)
+db.updateBalance = (userId, amount) => {
+    try {
+        const event = db.getUserActiveEvent(userId);
+
+        if (event) {
+            // Update Event Wallet
+            db.prepare('UPDATE event_participants SET event_balance = event_balance + ? WHERE user_id = ? AND event_id = ?').run(amount, userId, event.id);
+            return { success: true, wallet: 'event', newBalance: event.event_balance + amount };
+        } else {
+            // Update Main Wallet
+            const user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
+            if (!user) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(userId);
+
+            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, userId);
+            return { success: true, wallet: 'main', newBalance: (user ? user.uang_jajan : 0) + amount };
+        }
+    } catch (e) {
+        console.error(e);
+        return { success: false, error: 'Database error' };
+    }
+};
+
+// --- EVENT MANAGEMENT ---
+
+db.createEvent = (name, fee, initialBalance, durationHours, creatorId) => {
+    try {
+        // Deactivate other events first (Single Event Rule)
+        db.prepare('UPDATE events SET is_active = 0 WHERE is_active = 1').run();
+
+        const startTime = Date.now();
+        const endTime = startTime + (durationHours * 60 * 60 * 1000);
+
+        const info = db.prepare(`
+            INSERT INTO events (name, entry_fee, initial_balance, start_time, end_time, is_active, created_by)
+            VALUES (?, ?, ?, ?, ?, 1, ?)
+        `).run(name, fee, initialBalance, startTime, endTime, creatorId);
+
+        return { success: true, eventId: info.lastInsertRowid };
+    } catch (e) { return { success: false, error: e.message }; }
+};
+
+db.joinEvent = (userId, eventId) => {
+    try {
+        const event = db.prepare('SELECT * FROM events WHERE id = ? AND is_active = 1').get(eventId);
+        if (!event) return { success: false, error: 'Event tidak aktif/ditemukan.' };
+
+        // Check if already joined
+        const existing = db.prepare('SELECT * FROM event_participants WHERE user_id = ? AND event_id = ?').get(userId, eventId);
+        if (existing) return { success: false, error: 'Sudah join event ini.' };
+
+        // Check Fee
+        if (event.entry_fee > 0) {
+            const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+            if (!user || user.uang_jajan < event.entry_fee) {
+                return { success: false, error: `Uang kurang! Butuh Rp ${event.entry_fee.toLocaleString('id-ID')}.` };
+            }
+            // Deduct Fee from MAIN WALLET
+            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(event.entry_fee, userId);
+        }
+
+        // Add to Participants with Initial Balance
+        db.prepare(`
+            INSERT INTO event_participants (event_id, user_id, event_balance, joined_at)
+            VALUES (?, ?, ?, ?)
+        `).run(eventId, userId, event.initial_balance, Date.now());
+
+        return { success: true, eventName: event.name, initialBalance: event.initial_balance };
+    } catch (e) { return { success: false, error: e.message }; }
+};
+
+db.stopEvent = (eventId) => {
+    try {
+        const event = db.prepare('SELECT * FROM events WHERE id = ?').get(eventId);
+        if (!event) return { success: false, error: 'Event tidak ditemukan.' };
+
+        // 1. Deactivate
+        db.prepare('UPDATE events SET is_active = 0 WHERE id = ?').run(eventId);
+
+        // 2. Distribute 10% of remaining event balance to main wallet
+        const participants = db.prepare('SELECT * FROM event_participants WHERE event_id = ?').all(eventId);
+        let count = 0;
+
+        const transferStmt = db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?');
+
+        for (const p of participants) {
+            if (p.event_balance > 0) {
+                const transferAmount = Math.floor(p.event_balance * 0.1); // 10%
+                if (transferAmount > 0) {
+                    transferStmt.run(transferAmount, p.user_id);
+                    count++;
+                }
+            }
+        }
+
+        return { success: true, processed: count };
+    } catch (e) { return { success: false, error: e.message }; }
+};
+
+db.getEventLeaderboard = (eventId) => {
+    try {
+        return db.prepare(`
+            SELECT user_id, event_balance as uang_jajan 
+            FROM event_participants 
+            WHERE event_id = ? 
+            ORDER BY event_balance DESC 
+            LIMIT 100
+        `).all(eventId);
+    } catch (e) { return []; }
+};
+
+db.getActiveEvent = () => {
+    try {
+        return db.prepare('SELECT * FROM events WHERE is_active = 1').get();
+    } catch (e) { return null; }
+};
+
+db.kickFromEvent = (userId, eventId) => {
+    try {
+        db.prepare('DELETE FROM event_participants WHERE user_id = ? AND event_id = ?').run(userId, eventId);
+        return true;
+    } catch (e) { return false; }
+};
+
 module.exports = db;
 

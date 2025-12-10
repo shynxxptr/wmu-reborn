@@ -64,8 +64,7 @@ module.exports = {
         const rawBet = args[1];
         if (!rawBet) return message.reply('❌ Format: `!bj <bet>` atau `!bj all`');
 
-        const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
-        const balance = user ? user.uang_jajan : 0;
+        const balance = db.getBalance(userId);
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
@@ -78,7 +77,8 @@ module.exports = {
         if (balance < bet) return message.reply('💸 **Uang gak cukup!**');
 
         // Deduct Bet
-        db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(bet, userId);
+        const updateRes = db.updateBalance(userId, -bet);
+        const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
 
         // Start Game
         const deck = createDeck();
@@ -92,11 +92,11 @@ module.exports = {
         if (playerScore === 21) {
             // Payout 3:2
             const winAmount = Math.floor(bet * 2.5); // Return bet + 1.5x
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, userId);
+            db.updateBalance(userId, winAmount);
 
             const embed = new EmbedBuilder()
                 .setTitle('🃏 BLACKJACK!')
-                .setDescription(`**Player:** ${formatHand(playerHand)} (${playerScore})\n**Dealer:** ${formatHand(dealerHand)} (${calculateHand(dealerHand)})\n\n🎉 **BLACKJACK!** Kamu menang **Rp ${winAmount.toLocaleString('id-ID')}**!`)
+                .setDescription(`**Player:** ${formatHand(playerHand)} (${playerScore})\n**Dealer:** ${formatHand(dealerHand)} (${calculateHand(dealerHand)})\n\n🎉 **BLACKJACK!** Kamu menang **Rp ${winAmount.toLocaleString('id-ID')}**!\n*${walletType}*`)
                 .setColor('#FFD700');
 
             return message.reply({ embeds: [embed] });
@@ -122,7 +122,8 @@ module.exports = {
             dealerHand,
             deck,
             isDouble: false,
-            messageId: msg.id
+            messageId: msg.id,
+            walletType
         });
     },
 
@@ -165,13 +166,13 @@ module.exports = {
             await this.dealerTurn(interaction, game);
         } else if (action === 'double') {
             // Check balance again
-            const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(game.userId);
-            if (!user || user.uang_jajan < game.bet) {
+            const currentBal = db.getBalance(game.userId);
+            if (currentBal < game.bet) {
                 return interaction.reply({ content: '💸 Uang gak cukup buat Double Down!', flags: [MessageFlags.Ephemeral] });
             }
 
             // Deduct extra bet
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(game.bet, game.userId);
+            db.updateBalance(game.userId, -game.bet);
             game.bet *= 2;
             game.isDouble = true;
 
@@ -228,12 +229,12 @@ module.exports = {
         }
 
         if (winAmount > 0) {
-            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(winAmount, game.userId);
+            db.updateBalance(game.userId, winAmount);
         }
 
         const embed = new EmbedBuilder()
             .setTitle('🃏 BLACKJACK - HASIL')
-            .setDescription(`**Dealer:** ${formatHand(game.dealerHand)} (**${dealerScore}**)\n**Player:** ${formatHand(game.playerHand)} (**${playerScore}**)\n\n${result}`)
+            .setDescription(`**Dealer:** ${formatHand(game.dealerHand)} (**${dealerScore}**)\n**Player:** ${formatHand(game.playerHand)} (**${playerScore}**)\n\n${result}\n*${game.walletType}*`)
             .setColor(color);
 
         const row = new ActionRowBuilder().addComponents(

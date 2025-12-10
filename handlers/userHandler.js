@@ -9,53 +9,61 @@ module.exports = {
 
         try {
             const userId = interaction.user.id;
-            const roles = db.prepare('SELECT * FROM role_aktif WHERE user_id = ?').all(userId);
-            const inventory = db.prepare('SELECT * FROM inventaris WHERE user_id = ? AND jumlah > 0').all(userId);
+            const { formatMoney } = require('../utils/helpers.js');
+
+            // Fetch User Data
+            let user = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
+            if (!user) {
+                db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(userId);
+                user = { user_id: userId, uang_jajan: 0, coin_ujang: 0, last_work_count: 0, hunger: 0, thirst: 0, stress: 0 };
+            }
+
+            // Helper for Progress Bar
+            const createProgressBar = (value, max = 100) => {
+                const totalBars = 10;
+                const filledBars = Math.round((value / max) * totalBars);
+                const emptyBars = totalBars - filledBars;
+                const filled = '🟩'.repeat(filledBars);
+                const empty = '⬜'.repeat(emptyBars);
+                return `${filled}${empty} (${value}%)`;
+            };
 
             const embed = new EmbedBuilder()
-                .setTitle(`👤 Dashboard: ${interaction.user.username}`)
-                .setColor('Blue')
+                .setTitle(`📊 Status Karakter: ${interaction.user.username}`)
+                .setColor('#00AAFF')
                 .setThumbnail(interaction.user.displayAvatarURL());
 
-            // A. ROLE AKTIF
-            let roleListText = '';
-            if (roles.length === 0) {
-                roleListText = '*Belum memiliki role kustom.*';
-            } else {
-                roles.forEach((r, index) => {
-                    const roleObj = interaction.guild.roles.cache.get(r.role_id);
-                    const roleName = roleObj ? roleObj.name : '⚠️ Role Terhapus';
-                    const roleColor = roleObj ? roleObj.hexColor : '#000000';
-                    roleListText += `**${index + 1}. ${roleName}**\n   🎨 \`${roleColor}\` | ⏳ Hangus: <t:${r.expires_at}:R>\n`;
-                });
-            }
-            embed.addFields({ name: `🔥 Role Aktif (${roles.length}/3 Slot)`, value: roleListText });
+            // A. KONDISI FISIK
+            const hungerBar = createProgressBar(user.hunger || 0);
+            const thirstBar = createProgressBar(user.thirst || 0);
+            const stressBar = createProgressBar(user.stress || 0);
 
-            // B. ISI TAS
-            let invListText = '';
-            if (inventory.length === 0) invListText = '*Tas kosong.*';
-            else {
-                const { MENU_KANTIN } = require('./kantinHandler.js');
-                inventory.forEach(item => {
-                    let label = item.jenis_tiket;
+            embed.addFields({
+                name: '🏥 Kondisi Fisik',
+                value:
+                    `🍖 **Lapar**: ${hungerBar}\n` +
+                    `💧 **Haus**: ${thirstBar}\n` +
+                    `🤯 **Stress**: ${stressBar}\n` +
+                    `*Tips: Makan/Minum di Kantin jika stat > 80%!*`
+            });
 
-                    if (TIKET_CONFIG[item.jenis_tiket]) {
-                        label = TIKET_CONFIG[item.jenis_tiket].label;
-                    } else if (MENU_KANTIN[item.jenis_tiket]) {
-                        label = `${MENU_KANTIN[item.jenis_tiket].emoji} ${MENU_KANTIN[item.jenis_tiket].label}`;
-                    }
+            // B. EKONOMI
+            embed.addFields({
+                name: '💰 Keuangan',
+                value:
+                    `💵 **Uang Jajan**: Rp ${formatMoney(user.uang_jajan)}\n` +
+                    `🪙 **Coin Ujang**: ${user.coin_ujang || 0} Coin`
+            });
 
-                    invListText += `• **${label}**: ${item.jumlah} buah\n`;
-                });
-            }
-            embed.addFields({ name: '🎒 Tas Tiket', value: invListText });
+            // C. ENERGI KERJA
+            const MAX_JOBS = 5;
+            const remainingJobs = MAX_JOBS - (user.last_work_count || 0);
+            embed.addFields({
+                name: '⚡ Energi Kerja',
+                value: `Sisa Jatah Kerja: **${remainingJobs}/${MAX_JOBS}** jam ini.`
+            });
 
-            // C. LINK PASAR
-            if (stockChannelId) {
-                embed.addFields({ name: '📈 Info Pasar', value: `Cek stok live di <#${stockChannelId}>` });
-            }
-
-            embed.setFooter({ text: 'Gunakan tombol "Kelola Role" untuk memakai tiket.' });
+            embed.setFooter({ text: 'Gunakan /kantin untuk memulihkan kondisi.' });
 
             // LAKUKAN EDIT REPLY (Karena sudah di-defer di router)
             await interaction.editReply({ embeds: [embed] });
