@@ -28,7 +28,7 @@ module.exports = {
         else bet = parseInt(lower);
 
         if (isNaN(bet) || bet <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-        if (bet > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
+        if (bet > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
 
         // Cooldown Check (20 Seconds)
         const now = Date.now();

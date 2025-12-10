@@ -72,8 +72,8 @@ const JOBS = {
         stress_add: 15
     },
     '!mulung': {
-        min: 1000,
-        max: 3000,
+        min: 3000,
+        max: 8000,
         reply: [
             "Nemu botol plastik bekas.",
             "Kardus bekas lumayan buat dijual.",
@@ -335,7 +335,7 @@ module.exports = {
                 return message.reply(`⏳ **Sabar!** Kamu bisa ambil daily lagi dalam ${hours} jam ${minutes} menit.`);
             }
 
-            let reward = 5000; // Base Reward
+            let reward = 15000; // Base Reward
             let bonusMsg = '';
 
             // Check Khodam Effect

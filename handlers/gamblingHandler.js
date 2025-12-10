@@ -125,7 +125,7 @@ module.exports = {
             if (isNaN(amount) || amount <= 0 || !['head', 'tail', 'h', 't'].includes(choice)) {
                 return message.reply('❌ Format: `!cf <jumlah> <head/tail>`');
             }
-            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
+            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
 
             // Cooldown Check (5 Seconds)
             const cfCooldown = 5000;
@@ -177,7 +177,7 @@ module.exports = {
         if (command === '!slots') {
             const amount = parseInt(args[1]);
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Format: `!slots <jumlah>`');
-            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
+            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
 
             // Cooldown Check (10 Seconds)
             const slotCooldown = 10000;
@@ -280,7 +280,7 @@ module.exports = {
             }
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
+            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
 
             // Cooldown Check (20 Seconds)
             const mathCooldownTime = 20000;
@@ -454,8 +454,8 @@ module.exports = {
             else amount = parseInt(rawAmount);
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-            if (amount > 100000000) return message.reply('❌ Maksimal taruhan adalah 100 Juta!');
-            if (isBuy && amount > 1000000) return message.reply('❌ Maksimal bet untuk fitur Buy adalah 1 Juta (Total 100 Juta)!');
+            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+            if (isBuy && amount > 100000) return message.reply('❌ Maksimal bet untuk fitur Buy adalah 100 Ribu (Total 10 Juta)!');
 
             argsIdx++;
             let mode = 'normal'; // normal, auto, turbo
