@@ -507,7 +507,26 @@ module.exports = {
             return message.reply(`✅ **Role Rank ${rank}** diset ke ID: \`${roleId}\`.`);
         }
 
-        // --- 9. HELP COMMAND ---
+        // --- 9. PATCHNOTE ---
+        if (content === '!patchnote' || content === '!changelog') {
+            const patchnoteCommand = require('../commands/user/patchnote.js');
+            // Mock interaction object for compatibility
+            const mockInteraction = {
+                deferReply: async () => { },
+                editReply: async (response) => {
+                    if (response.embeds) {
+                        return message.reply({ embeds: response.embeds });
+                    }
+                    return message.reply(response);
+                },
+                user: message.author,
+                guild: message.guild
+            };
+            await patchnoteCommand.execute(mockInteraction);
+            return;
+        }
+
+        // --- 10. HELP COMMAND ---
         if (content === '!kantin help' || content === '!kantinhelp' || content === '!help') {
             const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 

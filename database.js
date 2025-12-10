@@ -750,5 +750,31 @@ db.kickFromEvent = (userId, eventId) => {
     } catch (e) { return false; }
 };
 
+// 22. DAILY MISSIONS SYSTEM
+db.exec(`
+    CREATE TABLE IF NOT EXISTS daily_missions (
+        user_id TEXT PRIMARY KEY,
+        missions TEXT,
+        last_updated INTEGER
+    )
+`);
+
+db.getMissions = (userId) => {
+    try {
+        const row = db.prepare('SELECT * FROM daily_missions WHERE user_id = ?').get(userId);
+        return row;
+    } catch (e) { return null; }
+};
+
+db.saveMissions = (userId, missions) => {
+    try {
+        db.prepare(`
+            INSERT INTO daily_missions (user_id, missions, last_updated) VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET missions = ?, last_updated = ?
+        `).run(userId, JSON.stringify(missions), Date.now(), JSON.stringify(missions), Date.now());
+        return true;
+    } catch (e) { return false; }
+};
+
 module.exports = db;
 

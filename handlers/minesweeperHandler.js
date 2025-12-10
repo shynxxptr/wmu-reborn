@@ -1,5 +1,6 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } = require('discord.js');
 const db = require('../database.js');
+const missionHandler = require('./missionHandler.js');
 
 // Active Minesweeper Games
 // Key: messageId (The game embed message)
@@ -47,6 +48,7 @@ module.exports = {
         // Deduct Bet
         const updateRes = db.updateBalance(userId, -bet);
         const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
+        missionHandler.trackMission(userId, 'play_mines');
 
         // Generate Grid
         const grid = Array(GRID_SIZE).fill(0);

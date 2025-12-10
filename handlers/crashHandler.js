@@ -1,5 +1,6 @@
 const { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder, MessageFlags } = require('discord.js');
 const db = require('../database.js');
+const missionHandler = require('./missionHandler.js');
 
 // Active Crash Games
 // Key: messageId
@@ -43,6 +44,7 @@ module.exports = {
         // Deduct Bet
         const updateRes = db.updateBalance(userId, -bet);
         const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
+        missionHandler.trackMission(userId, 'play_crash');
 
         // Calculate Crash Point
         // Algorithm: 1% instant crash (1.00x).
@@ -191,11 +193,16 @@ module.exports = {
     async endGame(message, game, isCrash) {
         activeCrash.delete(game.messageId);
 
+        // Add to History
+        const finalMult = isCrash ? game.crashPoint : game.multiplier;
+        this.addToHistory(finalMult);
+
         if (isCrash) {
             const embed = new EmbedBuilder()
                 .setTitle('📉 CRASH! ANJLOK!')
                 .setDescription(`Saham anjlok di angka **${game.crashPoint.toFixed(2)}x**.\nUang **Rp ${game.bet.toLocaleString('id-ID')}** hangus.\n*${game.walletType}*`)
-                .setColor('#FF0000');
+                .setColor('#FF0000')
+                .setFooter({ text: `History: ${this.getHistoryString()}` });
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -209,5 +216,18 @@ module.exports = {
                 await message.edit({ embeds: [embed], components: [row] });
             } catch (e) { }
         }
+    },
+
+    // --- HISTORY FEATURE ---
+    crashHistory: [],
+
+    addToHistory(multiplier) {
+        this.crashHistory.unshift(multiplier);
+        if (this.crashHistory.length > 5) this.crashHistory.pop();
+    },
+
+    getHistoryString() {
+        if (this.crashHistory.length === 0) return '-';
+        return this.crashHistory.map(m => `${m.toFixed(2)}x`).join(' | ');
     }
 };

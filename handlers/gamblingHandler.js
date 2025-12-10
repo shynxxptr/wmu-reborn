@@ -2,6 +2,7 @@ const db = require('../database.js');
 const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 const { formatMoney } = require('../utils/helpers.js');
 const path = require('path');
+const missionHandler = require('./missionHandler.js');
 
 // Cooldown Map for Doa Ujang
 const doaCooldowns = new Map();
@@ -163,6 +164,7 @@ module.exports = {
             if (isWin) {
                 const winAmount = amount * 2;
                 db.updateBalance(userId, winAmount);
+                missionHandler.trackMission(userId, 'win_coinflip');
                 const luckMsg = luck > 0 ? ` (🍀 Luck +${luck}%)` : '';
                 return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${formatMoney(winAmount)}! 🎉${luckMsg}\n*${walletType}*`);
             } else {
@@ -191,6 +193,7 @@ module.exports = {
             // Deduct bet first
             const updateRes = db.updateBalance(userId, -amount);
             const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
+            missionHandler.trackMission(userId, 'play_slots');
 
             // Jackpot Check
             handleJackpot(amount, userId);
@@ -293,6 +296,7 @@ module.exports = {
             // Deduct bet
             const updateRes = db.updateBalance(userId, -amount);
             const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
+            missionHandler.trackMission(userId, 'play_math');
 
             // Determine Difficulty & Multiplier
             let difficulty = 'easy';
@@ -475,6 +479,7 @@ module.exports = {
             if (requestedSpins < 1) requestedSpins = 1;
 
             const costPerSpin = isBuy ? amount * 100 : amount;
+            missionHandler.trackMission(userId, 'play_slots', requestedSpins);
 
             // Initial Check
             const currentBalance = db.getBalance(userId);
