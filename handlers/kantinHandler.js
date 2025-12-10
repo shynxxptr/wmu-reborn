@@ -73,6 +73,27 @@ const MENU_KANTIN = {
         desc: 'Rp 15.000 - Coklat anti galau.',
         reply: '🍫 **Nyam... Manis banget!**\n\n*Mood langsung naik, stress langsung turun.*\nStatus: **Stress -40, Hati Senang**',
         stress_relief: 40
+    },
+    'seblak_pedas': {
+        label: 'Seblak Pedas Mampus',
+        price: 10000,
+        emoji: '🌶️',
+        desc: 'Rp 10.000 - Pedasnya bikin melek.',
+        reply: '🌶️ **Hah.. Hah.. Pedas!**\n\n*Keringat bercucuran, tapi enak banget!*\nEfek: **Lapar -40, Haus +30, Stress -20**'
+    },
+    'nasi_kuning': {
+        label: 'Nasi Kuning Komplit',
+        price: 12000,
+        emoji: '🍛',
+        desc: 'Rp 12.000 - Sarapan para juara.',
+        reply: '🍛 **Nyam... Kenyang Pol!**\n\n*Perut kenyang, hati senang, mata ngantuk.*\nEfek: **Lapar -80 (Kenyang Maksimal)**'
+    },
+    'kuku_bima': {
+        label: 'Kuku Bima Enerji',
+        price: 4000,
+        emoji: '⚡',
+        desc: 'Rp 4.000 - Rosa! Rosa!',
+        reply: '⚡ **ROSA!**\n\n*Tenaga langsung full, siap kerja rodi!*\nEfek: **Limit Kerja +2 (Stamina Boost)**'
     }
 };
 
@@ -277,6 +298,36 @@ module.exports = {
         if (itemKey === 'mie_tante') {
             db.prepare('UPDATE user_economy SET last_work_count = 0 WHERE user_id = ?').run(user.id);
             effectText += '\n✨ **BUFF AKTIF:** Limit kerja harian di-reset!';
+        }
+
+        // EFEK KHUSUS: Seblak Pedas (Thirst +30)
+        if (itemKey === 'seblak_pedas') {
+            db.prepare('UPDATE user_economy SET thirst = MIN(100, thirst + 30) WHERE user_id = ?').run(user.id);
+            effectText += '\n🔥 **PEDAS!** Haus bertambah +30%.';
+        }
+
+        // EFEK KHUSUS: Nasi Kuning (Hunger -80)
+        if (itemKey === 'nasi_kuning') {
+            db.prepare('UPDATE user_economy SET hunger = MAX(0, hunger - 80) WHERE user_id = ?').run(user.id);
+            effectText += '\n🍚 **KENYANG!** Lapar berkurang drastis (-80%).';
+        }
+
+        // EFEK KHUSUS: Kuku Bima (Job Limit +2)
+        if (itemKey === 'kuku_bima') {
+            db.prepare('UPDATE user_economy SET last_work_count = MAX(0, last_work_count - 2) WHERE user_id = ?').run(user.id);
+            effectText += '\n⚡ **STAMINA!** Limit kerja bertambah (+2x).';
+        }
+
+        // EFEK KHUSUS: Pod Bekas (RNG)
+        if (itemKey === 'pod_bekas') {
+            const hoki = Math.random() > 0.5;
+            if (hoki) {
+                db.prepare('UPDATE user_economy SET stress = MAX(0, stress - 60) WHERE user_id = ?').run(user.id);
+                effectText += '\n😋 **Enak!** Liquidnya rasa Strawberry Cheesecake. Stress -60.';
+            } else {
+                db.prepare('UPDATE user_economy SET stress = MIN(100, stress + 20) WHERE user_id = ?').run(user.id);
+                effectText += '\n🤢 **ZONK!** Liquidnya rasa gosong (Dry Hit). Stress +20.';
+            }
         }
 
         // 4. REPLY

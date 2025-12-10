@@ -776,5 +776,31 @@ db.saveMissions = (userId, missions) => {
     } catch (e) { return false; }
 };
 
+// 23. ESKUL SYSTEM
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_eskul (
+        user_id TEXT PRIMARY KEY,
+        eskul_name TEXT,
+        joined_at INTEGER
+    )
+`);
+
+db.joinEskul = (userId, eskulName) => {
+    try {
+        db.prepare(`
+            INSERT INTO user_eskul (user_id, eskul_name, joined_at) VALUES (?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET eskul_name = ?, joined_at = ?
+        `).run(userId, eskulName, Date.now(), eskulName, Date.now());
+        return true;
+    } catch (e) { return false; }
+};
+
+db.getEskul = (userId) => {
+    try {
+        const row = db.prepare('SELECT * FROM user_eskul WHERE user_id = ?').get(userId);
+        return row ? row.eskul_name : null;
+    } catch (e) { return null; }
+};
+
 module.exports = db;
 

@@ -33,6 +33,53 @@ const JOBS = {
             "Kamu bersihin kolong meja kelas dari sampah bekas jajan.",
             "Kamu misahin sampah organik dan anorganik. Rajin!"
         ]
+    },
+    '!ngerjainpr': {
+        min: 10000,
+        max: 25000,
+        reply: [
+            "Kamu jokiin PR Matematika si Budi. Otak ngebul tapi dompet tebal!",
+            "Kamu ngerjain tugas Sejarah satu kelas. Guru curiga tapi aman.",
+            "Kamu buatin makalah PPKn buat kakak kelas. Easy money!"
+        ]
+    },
+    '!parkir': {
+        min: 2000,
+        max: 50000,
+        reply: [
+            "Priiit! Mundur... mundur... Yak sip! (Dikasih receh 2000 perak).",
+            "Jagain motor guru, dikasih tips lumayan.",
+            "Hoki! Ada alumni bawa mobil sport, dikasih tips gede!"
+        ]
+    },
+    '!jualanpulsa': {
+        min: 5000,
+        max: 15000,
+        reply: [
+            "Ada yang beli pulsa 10k. Untung dikit yang penting lancar.",
+            "Jualan kuota data laris manis hari ini.",
+            "Token listrik tetangga habis, kamu yang talangin dulu."
+        ]
+    },
+    '!jagawarnet': {
+        min: 15000,
+        max: 30000,
+        reply: [
+            "Bocah toxic teriak-teriak main PB. Pusing kepala!",
+            "Ada yang lupa logout billing, lumayan sisa waktunya.",
+            "Shift malam di warnet. Mata sepet tapi dompet tebal."
+        ],
+        stress_add: 15
+    },
+    '!mulung': {
+        min: 1000,
+        max: 3000,
+        reply: [
+            "Nemu botol plastik bekas.",
+            "Kardus bekas lumayan buat dijual.",
+            "Dapet kaleng bekas minuman."
+        ],
+        has_drop: true
     }
 };
 
@@ -83,10 +130,22 @@ module.exports = {
                 user.last_work_time = now;
             }
 
-            // Cek Limit
-            if (user.last_work_count >= MAX_JOBS_PER_HOUR) {
+            // CEK ESKUL BUFF
+            const userEskul = db.getEskul(userId);
+            let limitBonus = 0;
+            let hungerRed = 10;
+            let thirstRed = 15;
+            let stressRed = (job.stress_add || 5);
+
+            if (userEskul === 'futsal') limitBonus = 5;
+            if (userEskul === 'pramuka') { hungerRed = 5; thirstRed = 7; } // 50% Reduction
+            if (userEskul === 'pmr') stressRed = Math.ceil(stressRed / 2); // 50% Reduction
+
+            // Cek Limit (Updated with Bonus)
+            const maxJobs = MAX_JOBS_PER_HOUR + limitBonus;
+            if (user.last_work_count >= maxJobs) {
                 const resetTime = user.last_work_time + COOLDOWN_TIME;
-                return message.reply(`🛑 **Capek bang!** Istirahat dulu.\nKamu cuma bisa kerja ${MAX_JOBS_PER_HOUR}x per jam.\nCoba lagi <t:${Math.ceil(resetTime / 1000)}:R>.`);
+                return message.reply(`🛑 **Capek bang!** Istirahat dulu.\nKamu cuma bisa kerja ${maxJobs}x per jam (Buff Eskul: +${limitBonus}).\nCoba lagi <t:${Math.ceil(resetTime / 1000)}:R>.`);
             }
 
             // CEK STATUS FISIK (Lapar/Haus/Stress)
@@ -102,19 +161,94 @@ module.exports = {
             const gaji = Math.floor(Math.random() * (job.max - job.min + 1)) + job.min;
             const text = job.reply[Math.floor(Math.random() * job.reply.length)];
 
+            // LOGIKA DROP ITEM (Mulung)
+            let dropMsg = '';
+            if (job.has_drop) {
+                const chance = Math.random();
+                let itemDrop = null;
+                let itemName = '';
+
+                if (chance < 0.1) { // 10% Rare
+                    itemDrop = 'pod_bekas';
+                    itemName = 'Pod Bekas';
+                } else if (chance < 0.3) { // 20% Uncommon
+                    itemDrop = 'roti_bakar';
+                    itemName = 'Roti Bakar Sisa';
+                } else if (chance < 0.6) { // 30% Common
+                    itemDrop = 'korek_gas';
+                    itemName = 'Korek Gas Bekas';
+                }
+
+                if (itemDrop) {
+                    const cekInv = db.prepare('SELECT * FROM inventaris WHERE user_id = ? AND jenis_tiket = ?').get(userId, itemDrop);
+                    if (cekInv) {
+                        db.prepare('UPDATE inventaris SET jumlah = jumlah + 1 WHERE user_id = ? AND jenis_tiket = ?').run(userId, itemDrop);
+                    } else {
+                        db.prepare('INSERT INTO inventaris (user_id, jenis_tiket, jumlah) VALUES (?, ?, 1)').run(userId, itemDrop);
+                    }
+                    dropMsg = `\n🎁 **Nemu Barang:** Kamu menemukan **${itemName}**!`;
+                }
+            }
+
             // UPDATE DB (Gaji + Stats Increase)
-            // Work increases: Hunger +10, Thirst +15, Stress +5
             db.prepare(`
                 UPDATE user_economy SET 
                 uang_jajan = uang_jajan + ?, 
                 last_work_count = last_work_count + 1,
-                hunger = MIN(100, hunger + 10),
-                thirst = MIN(100, thirst + 15),
-                stress = MIN(100, stress + 5)
+                hunger = MIN(100, hunger + ?),
+                thirst = MIN(100, thirst + ?),
+                stress = MIN(100, stress + ?)
                 WHERE user_id = ?
-            `).run(gaji, userId);
+            `).run(gaji, hungerRed, thirstRed, stressRed, userId);
 
-            return message.reply(`✅ **${text}**\nUpah: +Rp ${formatMoney(gaji)}\nSisa Tenaga: ${MAX_JOBS_PER_HOUR - (user.last_work_count + 1)}/${MAX_JOBS_PER_HOUR} kali lagi jam ini.\n\n*Efek Kerja: Lapar +10, Haus +15, Stress +5*`);
+            return message.reply(`✅ **${text}**\nUpah: +Rp ${formatMoney(gaji)}${dropMsg}\nSisa Tenaga: ${maxJobs - (user.last_work_count + 1)}/${maxJobs} kali lagi jam ini.\n\n*Efek Kerja: Lapar +${hungerRed}, Haus +${thirstRed}, Stress +${stressRed}*`);
+        }
+
+        // --- 2.5 FITUR NAKAL (DELINQUENT) ---
+
+        // !bolos (Bolos Sekolah)
+        if (content === '!bolos') {
+            const chance = Math.random();
+            // 30% Chance Caught
+            if (chance < 0.3) {
+                const jailTime = 10 * 60 * 1000; // 10 Menit
+                db.jailUser(userId, jailTime, 'Bolos Sekolah (Ketahuan Guru BK)');
+                return message.reply('🚨 **WEEET! MAU KEMANA KAMU?!**\n\n*Guru BK menangkapmu saat mau loncat pagar.*\n**HUKUMAN:** Masuk Penjara (Detention) selama 10 menit!');
+            } else {
+                // Success: Stress -50
+                db.prepare('UPDATE user_economy SET stress = MAX(0, stress - 50) WHERE user_id = ?').run(userId);
+                return message.reply('🏃 **Berhasil Kabur!**\n\n*Kamu nongkrong di warkop sambil ngerokok.*\nEfek: **Stress Berkurang Drastis (-50)**.');
+            }
+        }
+
+        // !contek (Nyontek Ujian)
+        if (content === '!contek') {
+            const chance = Math.random();
+            // 40% Chance Caught
+            if (chance < 0.4) {
+                const denda = 50000;
+                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ?, stress = MIN(100, stress + 20) WHERE user_id = ?').run(denda, userId);
+                return message.reply(`📝 **KETAHUAN!**\n\n*Pengawas ujian merobek kertas jawabanmu.*\n**Sanksi:** Denda Rp ${formatMoney(denda)} & Stress +20.`);
+            } else {
+                // Success: Money 20k - 50k
+                const reward = Math.floor(Math.random() * (50000 - 20000 + 1)) + 20000;
+                db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(reward, userId);
+                return message.reply(`✅ **Mulus...**\n\n*Kamu berhasil nyalin jawaban si pintar.*\n**Hasil:** Nilai Bagus (Dapat Beasiswa Rp ${formatMoney(reward)})!`);
+            }
+        }
+
+        // !tawuran
+        if (content === '!tawuran') {
+            const tawuranHandler = require('../handlers/tawuranHandler.js');
+            await tawuranHandler.startTawuran(message);
+            return;
+        }
+
+        // !eskul
+        if (content.startsWith('!eskul')) {
+            const eskulHandler = require('../handlers/eskulHandler.js');
+            await eskulHandler.handleEskul(message, content.split(' '));
+            return;
         }
 
         // --- 3. SOCIAL ECONOMY ---
@@ -545,13 +679,18 @@ module.exports = {
                                 '`/makan` - Konsumsi item dari tas.'
                         },
                         {
-                            name: '💰 CARI UANG',
+                            name: '💰 CARI UANG (KERJA)',
                             value:
                                 '`!cekdompet` - Cek saldo.\n' +
-                                '`!daily` - Ambil gaji harian (Rp 5k + Bonus).\n' +
-                                '`!bantujualan` - Kerja santai (Rp 5k-10k).\n' +
-                                '`!nyapulapangan` - Kerja sedang (Rp 3k-7k).\n' +
-                                '`!pungutsampah` - Kerja ringan (Rp 2k-5k).'
+                                '`!daily` - Ambil gaji harian.\n' +
+                                '`!bantujualan` - Kerja santai (5k-10k).\n' +
+                                '`!nyapulapangan` - Kerja sedang (3k-7k).\n' +
+                                '`!pungutsampah` - Kerja ringan (2k-5k).\n' +
+                                '`!ngerjainpr` - Joki PR (10k-25k).\n' +
+                                '`!parkir` - Jaga Parkir (2k-50k).\n' +
+                                '`!jualanpulsa` - Bisnis Pulsa (5k-15k).\n' +
+                                '`!jagawarnet` - Jaga Warnet (15k-30k, Stress++).\n' +
+                                '`!mulung` - Cari rongsok (Dapet Item!).'
                         },
                         {
                             name: '🤝 SOSIAL',
@@ -600,12 +739,20 @@ module.exports = {
                     )
                     .setFooter({ text: 'Halaman 2 dari 3 • Gunakan "all" untuk all-in (Contoh: !cf all h).' }),
 
-                // PAGE 3: COIN UJANG & LAINNYA
+                // PAGE 3: COIN UJANG & FITUR SEKOLAH
                 new EmbedBuilder()
-                    .setTitle('💎 COIN UJANG & FITUR LAIN (3/3)')
+                    .setTitle('💎 COIN UJANG & FITUR SEKOLAH (3/3)')
                     .setColor('#A020F0')
-                    .setDescription('Mata uang premium untuk sultan.')
+                    .setDescription('Fitur premium dan kehidupan sekolah.')
                     .addFields(
+                        {
+                            name: '🏫 KEHIDUPAN SEKOLAH (BARU!)',
+                            value:
+                                '`!tawuran` - Ajak teman lawan sekolah sebelah.\n' +
+                                '`!eskul` - Join ekskul buat dapet buff.\n' +
+                                '`!bolos` - Kabur dari sekolah (Turunin Stress).\n' +
+                                '`!contek` - Nyontek ujian (Duit Gede/Denda).'
+                        },
                         {
                             name: '🪙 COIN UJANG',
                             value:
@@ -618,10 +765,6 @@ module.exports = {
                             value:
                                 '`/cekstatus` - Cek Lapar, Haus, Stress.\n' +
                                 '*Tips: Jangan sampai stat 100% atau gak bisa kerja!*'
-                        },
-                        {
-                            name: '👮 ADMIN',
-                            value: '`!tambahsaldo @user <jumlah>` - Cheat money (Admin Only).'
                         }
                     )
                     .setFooter({ text: 'Halaman 3 dari 3 • Bot by Antigravity' })

@@ -44,6 +44,30 @@ const MENU_WARUNG = {
         stress_relief: 40,
         type: 'rokok'
     },
+    'esse_berry': {
+        label: 'Esse Berry Pop (1 Batang)',
+        price: 3500,
+        emoji: '🍇',
+        desc: 'Rokok wangi buat yang pengen gaya.',
+        stress_relief: 35,
+        type: 'rokok'
+    },
+    'pod_bekas': {
+        label: 'Pod Bekas (Gacha)',
+        price: 50000,
+        emoji: '💨',
+        desc: 'Pod nemu di jalan. Isinya misterius.',
+        type: 'vape',
+        reply: '💨 **Fyuuh...** Kamu menghisap Pod Bekas.\n'
+    },
+    'cerutu_mahal': {
+        label: 'Cerutu Sultan',
+        price: 25000,
+        emoji: '🦁',
+        desc: 'Cerutu impor dari Kuba. (Stress -80)',
+        stress_relief: 80,
+        type: 'rokok'
+    },
 
     // --- MINUMAN KERAS (ALKOHOL) ---
     'iceland_vodka': {
