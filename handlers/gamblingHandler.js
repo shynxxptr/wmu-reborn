@@ -705,6 +705,9 @@ module.exports = {
                         await msg.edit({ embeds: [renderEmbed(partialGrid, amount, status, 'Spinning...', [], 'Blue')] });
                         await delay(800);
                     }
+                } else {
+                    // Turbo Mode Delay (Safety)
+                    await delay(200);
                 }
 
                 // Calculate Win

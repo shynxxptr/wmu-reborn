@@ -75,7 +75,7 @@ module.exports = {
                 'pelicin': {
                     label: '🛢️ Pelicin',
                     price: pricePelicin,
-                    desc: 'Reset Cooldown Begal & Minta',
+                    desc: 'Reset Cooldown Palak & Minta',
                     type: 'reset_cooldown'
                 }
             };
@@ -87,7 +87,7 @@ module.exports = {
                     .setColor('#000000')
                     .addFields(
                         { name: `🧿 Jimat Judi (${ITEMS['jimat_judi'].price} Coin)`, value: 'Nambah hoki 10% selama 1 jam.' },
-                        { name: `🛢️ Pelicin (${ITEMS['pelicin'].price} Coin)`, value: 'Reset cooldown Begal & Minta.' }
+                        { name: `🛢️ Pelicin (${ITEMS['pelicin'].price} Coin)`, value: 'Reset cooldown Palak & Minta.' }
                     )
                     .setFooter({ text: 'Gunakan !bm buy <item> (jimat_judi / pelicin)' });
 
@@ -116,10 +116,14 @@ module.exports = {
                     return message.reply(`✅ **Transaksi Berhasil.**\n🧿 **Jimat Judi** aktif! Hoki bertambah selama 1 jam.`);
                 }
                 else if (item.type === 'reset_cooldown') {
+                    // Reset Minta (Memory)
                     if (message.client.begCooldowns) {
                         message.client.begCooldowns.delete(message.author.id);
                     }
-                    return message.reply(`✅ **Transaksi Berhasil.**\n🛢️ **Pelicin** dipakai! Cooldown Ngemis & Begal di-reset.`);
+                    // Reset Palak (DB)
+                    db.setCooldown(message.author.id, 'palak', 0); // Set to 0 to reset
+
+                    return message.reply(`✅ **Transaksi Berhasil.**\n🛢️ **Pelicin** dipakai! Cooldown Ngemis & Palak di-reset.`);
                 }
             }
         }

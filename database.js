@@ -781,16 +781,18 @@ db.exec(`
     CREATE TABLE IF NOT EXISTS user_eskul (
         user_id TEXT PRIMARY KEY,
         eskul_name TEXT,
-        joined_at INTEGER
+        joined_at INTEGER,
+        last_payment INTEGER
     )
 `);
 
 db.joinEskul = (userId, eskulName) => {
     try {
+        const now = Date.now();
         db.prepare(`
-            INSERT INTO user_eskul (user_id, eskul_name, joined_at) VALUES (?, ?, ?)
-            ON CONFLICT(user_id) DO UPDATE SET eskul_name = ?, joined_at = ?
-        `).run(userId, eskulName, Date.now(), eskulName, Date.now());
+            INSERT INTO user_eskul (user_id, eskul_name, joined_at, last_payment) VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET eskul_name = ?, joined_at = ?, last_payment = ?
+        `).run(userId, eskulName, now, now, eskulName, now, now);
         return true;
     } catch (e) { return false; }
 };

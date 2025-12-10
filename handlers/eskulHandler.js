@@ -60,6 +60,12 @@ module.exports = {
             const choice = args[2] ? args[2].toLowerCase() : null;
             if (!choice || !ESKUL_LIST[choice]) return message.reply('❌ Ekskul tidak ditemukan. Cek `!eskul` untuk daftar.');
 
+            // Check if already joined
+            const currentEskul = db.getEskul(userId);
+            if (currentEskul) {
+                return message.reply(`❌ **Gak bisa selingkuh!**\nKamu sudah gabung di **${ESKUL_LIST[currentEskul.eskul_name].label}**.\nKetik \`!eskul leave\` dulu kalau mau pindah.`);
+            }
+
             const eskul = ESKUL_LIST[choice];
             const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
 

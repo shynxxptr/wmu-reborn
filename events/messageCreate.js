@@ -226,7 +226,7 @@ module.exports = {
             const chance = Math.random();
             // 40% Chance Caught
             if (chance < 0.4) {
-                const denda = 50000;
+                const denda = 25000;
                 db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ?, stress = MIN(100, stress + 20) WHERE user_id = ?').run(denda, userId);
                 return message.reply(`📝 **KETAHUAN!**\n\n*Pengawas ujian merobek kertas jawabanmu.*\n**Sanksi:** Denda Rp ${formatMoney(denda)} & Stress +20.`);
             } else {
@@ -327,6 +327,32 @@ module.exports = {
             const now = Date.now();
             const cooldown = 24 * 60 * 60 * 1000; // 24 Hours
             const lastDaily = db.getCooldown(userId, 'daily');
+
+            // --- CEK TAGIHAN ESKUL (MINGGUAN) ---
+            const eskulData = db.getEskul(userId);
+            if (eskulData) {
+                const oneWeek = 7 * 24 * 60 * 60 * 1000;
+                const lastPay = eskulData.last_payment || eskulData.joined_at; // Fallback for old data
+
+                if (now - lastPay >= oneWeek) {
+                    const eskulHandler = require('../handlers/eskulHandler.js');
+                    const eskulInfo = eskulHandler.ESKUL_LIST[eskulData.eskul_name];
+
+                    if (eskulInfo) {
+                        const userBal = db.getBalance(userId);
+                        if (userBal >= eskulInfo.cost) {
+                            // Auto Pay
+                            db.updateBalance(userId, -eskulInfo.cost);
+                            db.prepare('UPDATE user_eskul SET last_payment = ? WHERE user_id = ?').run(now, userId);
+                            message.channel.send(`💸 **Tagihan Eskul Terbayar!**\nKamu membayar Rp ${formatMoney(eskulInfo.cost)} untuk perpanjang masa aktif **${eskulInfo.label}**.`);
+                        } else {
+                            // Kick
+                            db.prepare('DELETE FROM user_eskul WHERE user_id = ?').run(userId);
+                            message.channel.send(`⚠️ **GAGAL BAYAR ESKUL!**\nUangmu kurang untuk bayar tagihan mingguan **${eskulInfo.label}** (Rp ${formatMoney(eskulInfo.cost)}).\nKamu telah **dikeluarkan** dari ekskul. Join lagi kalau udah punya duit!`);
+                        }
+                    }
+                }
+            }
 
             if (lastDaily && (now - lastDaily) < cooldown) {
                 const remaining = cooldown - (now - lastDaily);
@@ -453,6 +479,14 @@ module.exports = {
             await coinHandler.handleCoin(message, command, args);
         }
 
+        // --- 9.5 BLACK MARKET ---
+        if (content.startsWith('!bm')) {
+            const blackMarketHandler = require('../handlers/blackMarketHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await blackMarketHandler.handleBlackMarket(message, command, args);
+        }
+
         // !palak <@user> <amount>
         if (content.startsWith('!palak ')) {
             const args = content.split(' ');
@@ -471,7 +505,15 @@ module.exports = {
                 return message.reply('❌ Target sedang **OFFLINE**. Syarat malak: Target harus online!');
             }
 
-            // 2. CEK UANG KEDUANYA
+            // 2. CEK COOLDOWN
+            const lastPalak = db.getCooldown(userId, 'palak');
+            const cooldown = 10 * 60 * 1000; // 10 Menit
+            if (lastPalak && (Date.now() - lastPalak) < cooldown) {
+                const remaining = Math.ceil((cooldown - (Date.now() - lastPalak)) / 60000);
+                return message.reply(`⏳ **Sabar Preman!** Tunggu ${remaining} menit lagi sebelum malak lagi.`);
+            }
+
+            // 3. CEK UANG KEDUANYA
             const challengerData = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
             const targetData = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(targetUser.id);
 
@@ -482,8 +524,9 @@ module.exports = {
                 return message.reply('💸 **Target miskin!** Gak punya uang segitu.');
             }
 
-            // 3. START DUEL REQUEST
+            // 4. START DUEL REQUEST
             await gameHandler.handlePalakRequest(message, targetUser, amount);
+            db.setCooldown(userId, 'palak'); // Set cooldown after request sent
         }
 
         // --- 5. ADMIN COMMANDS ---

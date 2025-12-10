@@ -87,7 +87,7 @@ const KHODAM_LIST = {
     ]
 };
 
-const SUMMON_COST = 10; // 10 Coin Ujang
+const SUMMON_COST = 1000000; // Rp 1.000.000
 
 module.exports = {
     async handleKhodam(message, command, args) {
@@ -95,7 +95,7 @@ module.exports = {
 
         // !khodam (Cek Khodam)
         if (command === '!khodam') {
-            // --- LIST COMMAND ---
+            // ... (List command logic remains same)
             if (args[1] && args[1].toLowerCase() === 'list') {
                 const targetRarityInput = args.slice(2).join(' ').toLowerCase();
 
@@ -131,10 +131,6 @@ module.exports = {
                 }
 
                 const items = KHODAM_LIST[rarityKey];
-                // Handle long lists (simple split if needed, but for now just join)
-                // Discord limit is 4096 for description, 1024 for field.
-                // 20 items * ~20 chars = 400 chars. Should be safe.
-
                 const embed = new EmbedBuilder()
                     .setTitle(`📜 KHODAM: ${rarityKey.toUpperCase()}`)
                     .setColor(getRarityColor(rarityKey))
@@ -146,7 +142,7 @@ module.exports = {
             // --- CHECK OWN KHODAM ---
             const userKhodam = db.getKhodam(userId);
             if (!userKhodam) {
-                return message.reply('👻 Kamu belum punya Khodam. Ketik `!summon` untuk memanggil (Biaya: 10 Coin).');
+                return message.reply(`👻 Kamu belum punya Khodam. Ketik \`!summon\` untuk memanggil (Biaya: Rp ${formatMoney(SUMMON_COST)}).`);
             }
 
             const embed = new EmbedBuilder()
@@ -164,10 +160,10 @@ module.exports = {
 
         // !summon (Gacha Khodam)
         if (command === '!summon') {
-            // Check Coin
-            const user = db.prepare('SELECT coin_ujang FROM user_economy WHERE user_id = ?').get(userId);
-            if (!user || user.coin_ujang < SUMMON_COST) {
-                return message.reply(`💸 **Coin kurang!** Butuh ${SUMMON_COST} Coin untuk ritual pemanggilan.`);
+            // Check Money
+            const user = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+            if (!user || user.uang_jajan < SUMMON_COST) {
+                return message.reply(`💸 **Uang kurang!** Butuh Rp ${formatMoney(SUMMON_COST)} untuk ritual pemanggilan.`);
             }
 
             // Check Existing
@@ -176,8 +172,8 @@ module.exports = {
                 return message.reply(`❌ Kamu sudah punya khodam **${existing.khodam_name}**!\nKetik \`!lepas\` dulu kalau mau ganti.`);
             }
 
-            // Deduct Coin
-            db.prepare('UPDATE user_economy SET coin_ujang = coin_ujang - ? WHERE user_id = ?').run(SUMMON_COST, userId);
+            // Deduct Money
+            db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(SUMMON_COST, userId);
 
             // Gacha Logic
             let totalWeight = 0;

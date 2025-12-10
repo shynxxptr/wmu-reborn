@@ -174,17 +174,25 @@ module.exports = {
             return interaction.reply({ content: `❌ Kamu tidak punya **${menu.label}**!`, flags: [MessageFlags.Ephemeral] });
         }
 
+        // 1.5 CEK KOREK (JANGAN DIMAKAN)
+        if (itemKey === 'korek_gas') {
+            return interaction.reply({
+                content: '🔥 **Waduh!** Jangan dimakan bang, itu korek gas! Meledak nanti perutmu.\n*Gunakan korek otomatis saat merokok.*',
+                flags: [MessageFlags.Ephemeral]
+            });
+        }
+
         // 2. LOGIKA ALKOHOL (MODAL TAG TEMAN)
         if (isWarungItem && menu.type === 'alkohol') {
             const modal = new ModalBuilder()
                 .setCustomId(`modal_mabuk_${itemKey}`)
-                .setTitle('🍻 Siapa Teman Minummu?');
+                .setTitle('🍻 Pesta Miras (Ajak Teman)');
 
             const friendsInput = new TextInputBuilder()
                 .setCustomId('friends_input')
-                .setLabel('Tag 2 teman kamu (Wajib!)')
-                .setPlaceholder('@teman1 @teman2')
-                .setStyle(TextInputStyle.Short)
+                .setLabel('Tag 3-5 teman kamu (Wajib!)')
+                .setPlaceholder('@teman1 @teman2 @teman3 ...')
+                .setStyle(TextInputStyle.Paragraph)
                 .setMinLength(10)
                 .setRequired(true);
 
@@ -204,13 +212,18 @@ module.exports = {
         const friendsInput = interaction.fields.getTextInputValue('friends_input');
         const user = interaction.user;
 
-        // Cek Tag (Minimal 2 Unique User ID)
+        // Cek Tag (Minimal 3, Maksimal 5 Unique User ID)
         const mentionedIds = friendsInput.match(/<@!?(\d+)>/g);
-        const uniqueIds = mentionedIds ? [...new Set(mentionedIds)] : [];
+        let uniqueIds = mentionedIds ? [...new Set(mentionedIds)] : [];
 
-        if (uniqueIds.length < 2) {
+        // Clean IDs
+        uniqueIds = uniqueIds.map(id => id.replace(/[<@!>]/g, ''));
+        // Remove self if tagged
+        uniqueIds = uniqueIds.filter(id => id !== user.id);
+
+        if (uniqueIds.length < 3 || uniqueIds.length > 5) {
             return interaction.reply({
-                content: '🚫 **Gak asik lu!**\nKalo mau minum, ajak ajak kawan lahh! (Minimal tag 2 orang)',
+                content: '🚫 **Party Gagal!**\nMinimal ajak 3 teman, maksimal 5 teman. Jangan pelit, jangan juga kebanyakan!',
                 flags: [MessageFlags.Ephemeral]
             });
         }
@@ -225,11 +238,11 @@ module.exports = {
             return interaction.reply({ content: `❌ Barang sudah habis!`, flags: [MessageFlags.Ephemeral] });
         }
 
-        // Proses Konsumsi
-        await this.processConsume(interaction, user, itemKey, menu, true, item.jumlah);
+        // Proses Konsumsi untuk HOST
+        await this.processConsume(interaction, user, itemKey, menu, true, item.jumlah, uniqueIds);
     },
 
-    async processConsume(interaction, user, itemKey, menu, isWarungItem, currentStock) {
+    async processConsume(interaction, user, itemKey, menu, isWarungItem, currentStock, friendsIds = []) {
         // 1. LOGIKA ROKOK (Butuh Korek)
         if (isWarungItem && menu.type === 'rokok') {
             const korek = db.prepare('SELECT * FROM inventaris WHERE user_id = ? AND jenis_tiket = ?').get(user.id, 'korek_gas');
@@ -265,20 +278,46 @@ module.exports = {
             stressRed = 30; // Default rokok
         }
 
-        // EFEK KHUSUS: ALKOHOL (MABUK)
+        // EFEK KHUSUS: ALKOHOL (MABUK BARENG)
         if (isWarungItem && menu.type === 'alkohol') {
-            // Reset Stats to 0 and Update last_work_time to prevent immediate reset
-            db.prepare(`
-                UPDATE user_economy SET 
-                hunger = 0, 
-                thirst = 0, 
-                stress = 0,
-                last_work_count = last_work_count - 25,
-                last_work_time = ?
-                WHERE user_id = ?
-            `).run(Date.now(), user.id);
+            const allDrinkers = [user.id, ...friendsIds];
 
-            effectText += '\n\n✨ **EFEK MABUK:**\n• Lapar, Haus, Stress RESET ke 0!\n• Limit Kerja bertambah (+25x)!';
+            // Random Drunk Events
+            const drunkEvents = [
+                "muntah di sepatu teman",
+                "nangis inget mantan",
+                "joget di atas meja",
+                "ketiduran di kamar mandi",
+                "nelpon dosen jam 2 pagi",
+                "ngaku-ngaku jadi ultramen"
+            ];
+
+            let partyLog = "";
+
+            allDrinkers.forEach(drinkerId => {
+                // Ensure user exists
+                const checkUser = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(drinkerId);
+                if (!checkUser) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(drinkerId);
+
+                // Apply Effect
+                db.prepare(`
+                    UPDATE user_economy SET 
+                    hunger = 0, 
+                    thirst = 0, 
+                    stress = 0,
+                    last_work_count = last_work_count - 25,
+                    last_work_time = ?
+                    WHERE user_id = ?
+                `).run(Date.now(), drinkerId);
+
+                // Random Event for Friends
+                if (drinkerId !== user.id) {
+                    const randomEvent = drunkEvents[Math.floor(Math.random() * drunkEvents.length)];
+                    partyLog += `\n- <@${drinkerId}>: *${randomEvent}*`;
+                }
+            });
+
+            effectText += `\n\n🍻 **PESTA MIRAS PECAH!**\nKamu dan ${friendsIds.length} temanmu mabuk berat!\n\n**Efek Party:**${partyLog}\n\n✨ **SEMUA ORANG:**\n• Stats RESET ke 0 (Segar Bugar)\n• Limit Kerja +25x (Mode Kuli)`;
         } else {
             // Apply Normal Stats Reduction
             db.prepare(`
