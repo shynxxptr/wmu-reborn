@@ -99,13 +99,16 @@ function startDashboard(client) {
     app.post('/login', loginLimiter, (req, res) => {
         const { password } = req.body;
         
-        // Debug log (remove in production if needed)
-        if (process.env.NODE_ENV !== 'production') {
-            console.log('[LOGIN] Attempt - Password provided:', password ? 'Yes' : 'No');
-            console.log('[LOGIN] Expected password:', ADMIN_PASSWORD);
+        // Debug log
+        console.log('[LOGIN] Attempt received');
+        console.log('[LOGIN] Password provided:', password ? 'Yes' : 'No');
+        console.log('[LOGIN] Expected password length:', ADMIN_PASSWORD ? ADMIN_PASSWORD.length : 0);
+        
+        if (!password) {
+            return res.render('login', { error: 'Password harus diisi!' });
         }
         
-        if (password && password === ADMIN_PASSWORD) {
+        if (password === ADMIN_PASSWORD) {
             req.session.loggedin = true;
             req.session.userId = req.ip; // Track login IP
             req.session.save((err) => {
@@ -113,9 +116,11 @@ function startDashboard(client) {
                     console.error('[LOGIN] Session save error:', err);
                     return res.render('login', { error: 'Error saving session. Please try again.' });
                 }
+                console.log('[LOGIN] Success - Redirecting to /admin');
                 res.redirect('/admin');
             });
         } else {
+            console.log('[LOGIN] Failed - Wrong password');
             res.render('login', { error: 'Password Salah!' });
         }
     });
