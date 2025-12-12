@@ -297,19 +297,38 @@ module.exports = {
             collector.on('collect', async i => {
                 if (i.customId === 'confirm_transfer') {
                     // Re-check balance just in case
-                    const currentSender = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(userId);
+                    const currentSender = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(userId);
                     if (!currentSender || currentSender.uang_jajan < amount) {
                         return i.update({ content: '❌ Uang sudah tidak cukup!', embeds: [], components: [] });
                     }
 
+                    // --- LIMIT TRANSFER CHECK ---
+                    const LIMIT_HARIAN = 100000000; // 100 Juta
+                    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+
+                    // Reset limit if new day
+                    if (currentSender.last_transfer_day !== today) {
+                        db.prepare('UPDATE user_economy SET daily_transfer_total = 0, last_transfer_day = ? WHERE user_id = ?').run(today, userId);
+                        currentSender.daily_transfer_total = 0;
+                    }
+
+                    if ((currentSender.daily_transfer_total + amount) > LIMIT_HARIAN) {
+                        const sisaLimit = LIMIT_HARIAN - currentSender.daily_transfer_total;
+                        return i.update({
+                            content: `🚫 **Limit Transfer Harian Tercapai!**\nSisa limit kamu hari ini: Rp ${formatMoney(sisaLimit)}\nKamu mencoba kirim: Rp ${formatMoney(amount)}`,
+                            embeds: [],
+                            components: []
+                        });
+                    }
+
                     // Execute Transfer
-                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?').run(amount, userId);
+                    db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ?, daily_transfer_total = daily_transfer_total + ? WHERE user_id = ?').run(amount, amount, userId);
 
                     const receiver = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(targetUser.id);
                     if (!receiver) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(targetUser.id);
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, targetUser.id);
 
-                    await i.update({ content: `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${formatMoney(amount)} ke ${targetUser}.`, embeds: [], components: [] });
+                    await i.update({ content: `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${formatMoney(amount)} ke ${targetUser}.\n*Sisa limit hari ini: Rp ${formatMoney(LIMIT_HARIAN - (currentSender.daily_transfer_total + amount))}*`, embeds: [], components: [] });
                 } else {
                     await i.update({ content: '❌ **Transfer Dibatalkan.**', embeds: [], components: [] });
                 }

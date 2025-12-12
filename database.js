@@ -147,6 +147,8 @@ try { db.prepare('ALTER TABLE user_economy ADD COLUMN thirst INTEGER DEFAULT 0')
 try { db.prepare('ALTER TABLE user_economy ADD COLUMN stress INTEGER DEFAULT 0').run(); } catch (e) { }
 try { db.prepare('ALTER TABLE user_economy ADD COLUMN luck_boost INTEGER DEFAULT 0').run(); } catch (e) { }
 try { db.prepare('ALTER TABLE user_economy ADD COLUMN luck_expiration INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_economy ADD COLUMN daily_transfer_total INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_economy ADD COLUMN last_transfer_day TEXT DEFAULT NULL').run(); } catch (e) { }
 
 // --- INISIALISASI DATA ---
 const { TIKET_CONFIG } = require('./utils/helpers.js');
