@@ -102,26 +102,30 @@ function startDashboard(client) {
         // Debug log
         console.log('[LOGIN] Attempt received');
         console.log('[LOGIN] Password provided:', password ? 'Yes' : 'No');
-        console.log('[LOGIN] Expected password length:', ADMIN_PASSWORD ? ADMIN_PASSWORD.length : 0);
+        console.log('[LOGIN] Expected password:', ADMIN_PASSWORD);
+        console.log('[LOGIN] Password match:', password === ADMIN_PASSWORD);
         
         if (!password) {
-            return res.render('login', { error: 'Password harus diisi!' });
+            return res.status(400).render('login', { error: 'Password harus diisi!' });
         }
         
         if (password === ADMIN_PASSWORD) {
             req.session.loggedin = true;
             req.session.userId = req.ip; // Track login IP
+            
+            // Try to save session, but don't wait too long
             req.session.save((err) => {
                 if (err) {
                     console.error('[LOGIN] Session save error:', err);
-                    return res.render('login', { error: 'Error saving session. Please try again.' });
+                    return res.status(500).render('login', { error: 'Error saving session. Please try again.' });
                 }
                 console.log('[LOGIN] Success - Redirecting to /admin');
-                res.redirect('/admin');
+                // Use 302 redirect explicitly
+                res.status(302).redirect('/admin');
             });
         } else {
             console.log('[LOGIN] Failed - Wrong password');
-            res.render('login', { error: 'Password Salah!' });
+            res.status(401).render('login', { error: 'Password Salah!' });
         }
     });
 
