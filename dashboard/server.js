@@ -28,7 +28,7 @@ const PORT = process.env.PORT || config.port || config.PORT || 2560;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || config.adminPassword || 'changeme';
 const SESSION_SECRET = process.env.SESSION_SECRET || config.sessionSecret || crypto.randomBytes(32).toString('hex');
 
-// Security Headers
+// Security Headers (disable HSTS since we're using HTTP only)
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -38,7 +38,8 @@ app.use(helmet({
             imgSrc: ["'self'", "data:", "https:"],
             fontSrc: ["'self'", "https://cdnjs.cloudflare.com"]
         }
-    }
+    },
+    hsts: false // Disable HSTS since we're using HTTP only
 }));
 
 // Rate Limiting
@@ -98,15 +99,29 @@ async function getUsername(client, id) {
 
 function startDashboard(client) {
 
-    // Force HTTP (redirect HTTPS to HTTP)
+    // Force HTTP (redirect HTTPS to HTTP and remove HSTS)
     app.use((req, res, next) => {
-        if (req.header('x-forwarded-proto') === 'https') {
-            // If behind proxy, check if original was HTTPS
-            const protocol = req.protocol;
-            if (protocol === 'https') {
-                return res.redirect(`http://${req.get('host')}${req.url}`);
-            }
+        // Remove HSTS header to prevent browser from forcing HTTPS
+        res.removeHeader('Strict-Transport-Security');
+        
+        // Force HTTP protocol in redirects
+        if (req.header('x-forwarded-proto') === 'https' || req.protocol === 'https') {
+            return res.redirect(`http://${req.get('host')}${req.url}`);
         }
+        
+        // Override redirect function to always use HTTP
+        const originalRedirect = res.redirect;
+        res.redirect = function(url) {
+            if (typeof url === 'string') {
+                if (url.startsWith('https://')) {
+                    url = url.replace('https://', 'http://');
+                } else if (url.startsWith('/')) {
+                    url = `http://${req.get('host')}${url}`;
+                }
+            }
+            return originalRedirect.call(this, url);
+        };
+        
         next();
     });
 
@@ -143,9 +158,10 @@ function startDashboard(client) {
             console.log('[LOGIN] Success - Setting session and redirecting immediately');
             console.log('[LOGIN] Session ID:', req.sessionID);
             
-            // Redirect immediately - session will auto-save with resave: true
-            // Don't wait for callback to avoid hanging
-            return res.redirect('/admin');
+            // Redirect with explicit HTTP URL
+            const adminUrl = `http://${req.get('host')}/admin`;
+            console.log('[LOGIN] Redirecting to:', adminUrl);
+            return res.redirect(adminUrl);
         } else {
             console.log('[LOGIN] Failed - Wrong password');
             return res.status(401).render('login', { error: 'Password Salah!' });
