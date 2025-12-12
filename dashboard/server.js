@@ -91,6 +91,18 @@ async function getUsername(client, id) {
 
 function startDashboard(client) {
 
+    // Force HTTP (redirect HTTPS to HTTP)
+    app.use((req, res, next) => {
+        if (req.header('x-forwarded-proto') === 'https') {
+            // If behind proxy, check if original was HTTPS
+            const protocol = req.protocol;
+            if (protocol === 'https') {
+                return res.redirect(`http://${req.get('host')}${req.url}`);
+            }
+        }
+        next();
+    });
+
     // 1. LOGIN
     app.get('/login', (req, res) => {
         res.render('login', { error: null });
@@ -1138,8 +1150,10 @@ function startDashboard(client) {
         }
     });
 
-    app.listen(PORT, () => {
+    app.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 [WEB ADMIN] Online di http://localhost:${PORT}`);
+        console.log(`🌐 [WEB ADMIN] Juga bisa diakses via IP: http://YOUR_IP:${PORT}`);
+        console.log(`⚠️  [WARNING] Server hanya support HTTP, jangan gunakan HTTPS!`);
     });
 }
 
