@@ -243,7 +243,7 @@
             loginButton.style.pointerEvents = 'auto';
             loginButton.style.cursor = 'pointer';
 
-            // Handle form submission - use normal form submit (more reliable)
+            // Handle form submission - use normal form submit with redirect fallback
             loginForm.addEventListener('submit', (e) => {
                 const password = passwordInput.value.trim();
                 
@@ -257,17 +257,16 @@
                 loginButton.disabled = true;
                 loginButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memproses...';
                 
-                // Set timeout to re-enable button if stuck (10 seconds)
+                // Fallback: If redirect doesn't happen in 2 seconds, force redirect
                 setTimeout(() => {
-                    if (loginButton.disabled) {
-                        loginButton.disabled = false;
-                        loginButton.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Masuk';
-                        alert('Login timeout. Silakan coba lagi atau cek koneksi server.');
+                    // Check if we're still on login page
+                    if (window.location.pathname === '/login' && loginButton.disabled) {
+                        console.log('[LOGIN] Fallback redirect triggered');
+                        window.location.href = '/admin';
                     }
-                }, 10000);
+                }, 2000);
                 
-                // Let form submit normally - don't prevent default
-                // This is more reliable than fetch for form submissions
+                // Let form submit normally - browser will handle redirect
                 return true;
             });
 
