@@ -95,6 +95,113 @@ module.exports = {
         const content = message.content.toLowerCase().trim();
         const userId = message.author.id;
 
+        // --- 0. ADMIN TESTALL ---
+        if (content === '!testall') {
+            const isAdmin = db.prepare('SELECT * FROM bot_admins WHERE user_id = ?').get(userId);
+            if (!isAdmin) return message.reply('❌ **Admin only!**');
+
+            const testEmbed = new EmbedBuilder()
+                .setTitle('🧪 AUTO COMMAND TESTER')
+                .setDescription('Testing all player commands...')
+                .setColor('#FFA500');
+            const testMsg = await message.reply({ embeds: [testEmbed] });
+
+            const results = { working: [], broken: [] };
+            const test = async (cmd, desc) => {
+                try {
+                    const checks = {
+                        '!bantujualan': () => JOBS['!bantujualan'],
+                        '!nyapulapangan': () => JOBS['!nyapulapangan'],
+                        '!pungutsampah': () => JOBS['!pungutsampah'],
+                        '!ngerjainpr': () => JOBS['!ngerjainpr'],
+                        '!parkir': () => JOBS['!parkir'],
+                        '!jualanpulsa': () => JOBS['!jualanpulsa'],
+                        '!saldo': () => db.getBalance(userId),
+                        '!ngemis': () => true,
+                        '!palak': () => gameHandler,
+                        '!rps': () => gameHandler,
+                        '!doaujang': () => gamblingHandler,
+                        '!cf': () => gamblingHandler,
+                        '!slots': () => gamblingHandler,
+                        '!bs': () => gamblingHandler,
+                        '!math': () => gamblingHandler,
+                        '!crash': () => require('../handlers/crashHandler.js'),
+                        '!mine': () => require('../handlers/minesweeperHandler.js'),
+                        '!bj': () => require('../handlers/blackjackHandler.js'),
+                        '!uno': () => require('../handlers/unoHandler.js'),
+                        '!tawuran': () => require('../handlers/tawuranHandler.js'),
+                        '!khodam': () => require('../handlers/khodamHandler.js'),
+                        '!beri': () => true,
+                        '!lb': () => require('../handlers/leaderboardHandler.js'),
+                        '!eskul': () => require('../handlers/eskulHandler.js'),
+                        '!mission': () => require('../handlers/missionHandler.js'),
+                        '!pasar': () => require('../handlers/blackMarketHandler.js'),
+                        '!event': () => require('../handlers/eventHandler.js'),
+                        '/cekstatus': () => client.commands.get('cekstatus'),
+                        '/kantin': () => client.commands.get('kantin'),
+                        '/warung': () => client.commands.get('warung'),
+                        '/makan': () => client.commands.get('makan'),
+                        '/merokok': () => client.commands.get('merokok'),
+                        '/mabok': () => client.commands.get('mabok'),
+                        '/leaderboard': () => client.commands.get('leaderboard'),
+                        '/mission': () => client.commands.get('mission'),
+                        '/patchnote': () => client.commands.get('patchnote')
+                    };
+                    if (checks[cmd]) { checks[cmd](); results.working.push(`${cmd} - ${desc}`); }
+                    else results.broken.push(`${cmd} - Not found`);
+                } catch (e) { results.broken.push(`${cmd} - ${e.message}`); }
+            };
+
+            await test('!bantujualan', 'Work');
+            await test('!nyapulapangan', 'Work');
+            await test('!pungutsampah', 'Work');
+            await test('!ngerjainpr', 'Work');
+            await test('!parkir', 'Work');
+            await test('!jualanpulsa', 'Work');
+            await test('!saldo', 'Economy');
+            await test('!ngemis', 'Social');
+            await test('!beri', 'Transfer');
+            await test('!palak', 'Game');
+            await test('!rps', 'Game');
+            await test('!doaujang', 'Gambling');
+            await test('!cf', 'Gambling');
+            await test('!slots', 'Gambling');
+            await test('!bs', 'Gambling');
+            await test('!math', 'Gambling');
+            await test('!crash', 'Gambling');
+            await test('!mine', 'Gambling');
+            await test('!bj', 'Gambling');
+            await test('!uno', 'Game');
+            await test('!tawuran', 'Game');
+            await test('!khodam', 'Fun');
+            await test('!lb', 'Social');
+            await test('!eskul', 'School');
+            await test('!mission', 'Missions');
+            await test('!pasar', 'Black Market');
+            await test('!event', 'Events');
+            await test('/cekstatus', 'Status');
+            await test('/kantin', 'Shop');
+            await test('/warung', 'Shop');
+            await test('/makan', 'Action');
+            await test('/merokok', 'Action');
+            await test('/mabok', 'Action');
+            await test('/leaderboard', 'Social');
+            await test('/mission', 'Missions');
+            await test('/patchnote', 'Info');
+
+            const report = new EmbedBuilder()
+                .setTitle('🧪 COMMAND TEST RESULTS')
+                .setColor(results.broken.length === 0 ? '#00FF00' : '#FFA500')
+                .setTimestamp()
+                .setFooter({ text: `Total: ${results.working.length + results.broken.length} commands` });
+
+            if (results.working.length > 0) report.addFields({ name: `✅ Working (${results.working.length})`, value: results.working.slice(0, 25).map(r => `• ${r}`).join('\n') });
+            if (results.broken.length > 0) report.addFields({ name: `❌ Broken (${results.broken.length})`, value: results.broken.slice(0, 25).map(r => `• ${r}`).join('\n') });
+
+            await testMsg.edit({ embeds: [report] });
+            return;
+        }
+
         // --- 0. CEK PENJARA ---
         // --- 0. CEK PENJARA ---
         const jail = db.isJailed(userId);
