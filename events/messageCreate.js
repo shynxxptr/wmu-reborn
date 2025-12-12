@@ -102,12 +102,16 @@ module.exports = {
 
             const testEmbed = new EmbedBuilder()
                 .setTitle('🧪 AUTO COMMAND TESTER')
-                .setDescription('Testing all player commands...')
+                .setDescription('Initializing...')
                 .setColor('#FFA500');
             const testMsg = await message.reply({ embeds: [testEmbed] });
 
             const results = { working: [], broken: [] };
+            let tested = 0;
+            const total = 35;
+
             const test = async (cmd, desc) => {
+                tested++;
                 try {
                     const checks = {
                         '!bantujualan': () => JOBS['!bantujualan'],
@@ -147,9 +151,33 @@ module.exports = {
                         '/mission': () => client.commands.get('mission'),
                         '/patchnote': () => client.commands.get('patchnote')
                     };
-                    if (checks[cmd]) { checks[cmd](); results.working.push(`${cmd} - ${desc}`); }
-                    else results.broken.push(`${cmd} - Not found`);
-                } catch (e) { results.broken.push(`${cmd} - ${e.message}`); }
+                    if (checks[cmd]) {
+                        checks[cmd]();
+                        results.working.push(`${cmd} - ${desc}`);
+                    } else {
+                        results.broken.push(`${cmd} - Not found`);
+                    }
+                } catch (e) {
+                    results.broken.push(`${cmd} - ${e.message}`);
+                }
+
+                // Update embed after each test
+                const progressEmbed = new EmbedBuilder()
+                    .setTitle('🧪 AUTO COMMAND TESTER')
+                    .setDescription(`Testing: **${cmd}** (${desc})\n\nProgress: ${tested}/${total}`)
+                    .setColor('#FFA500');
+
+                if (results.working.length > 0) {
+                    const displayWorking = results.working.slice(-10).map(r => `✅ ${r}`).join('\n');
+                    progressEmbed.addFields({ name: `Working (${results.working.length})`, value: displayWorking });
+                }
+                if (results.broken.length > 0) {
+                    const displayBroken = results.broken.slice(-5).map(r => `❌ ${r}`).join('\n');
+                    progressEmbed.addFields({ name: `Broken (${results.broken.length})`, value: displayBroken });
+                }
+
+                await testMsg.edit({ embeds: [progressEmbed] });
+                await new Promise(resolve => setTimeout(resolve, 300)); // Delay for visibility
             };
 
             await test('!bantujualan', 'Work');
@@ -190,13 +218,18 @@ module.exports = {
             await test('/patchnote', 'Info');
 
             const report = new EmbedBuilder()
-                .setTitle('🧪 COMMAND TEST RESULTS')
+                .setTitle('🧪 COMMAND TEST COMPLETE')
+                .setDescription(`✅ **${results.working.length}** Working\n❌ **${results.broken.length}** Broken`)
                 .setColor(results.broken.length === 0 ? '#00FF00' : '#FFA500')
                 .setTimestamp()
-                .setFooter({ text: `Total: ${results.working.length + results.broken.length} commands` });
+                .setFooter({ text: `Total: ${results.working.length + results.broken.length} commands tested` });
 
-            if (results.working.length > 0) report.addFields({ name: `✅ Working (${results.working.length})`, value: results.working.slice(0, 25).map(r => `• ${r}`).join('\n') });
-            if (results.broken.length > 0) report.addFields({ name: `❌ Broken (${results.broken.length})`, value: results.broken.slice(0, 25).map(r => `• ${r}`).join('\n') });
+            if (results.working.length > 0) {
+                report.addFields({ name: `✅ All Working Commands`, value: results.working.map(r => `• ${r}`).join('\n').substring(0, 1024) });
+            }
+            if (results.broken.length > 0) {
+                report.addFields({ name: `❌ Broken Commands`, value: results.broken.map(r => `• ${r}`).join('\n').substring(0, 1024) });
+            }
 
             await testMsg.edit({ embeds: [report] });
             return;
