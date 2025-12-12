@@ -105,3 +105,39 @@ process.on('unhandledRejection', (reason, promise) => {
         // TODO: Send to monitoring service (Sentry, etc.)
     }
 });
+
+// --- DATABASE BACKUP ---
+if (process.env.AUTO_BACKUP_ENABLED === 'true') {
+    try {
+        const { backupDatabase, uploadToS3 } = require('./utils/backup.js');
+        
+        // Initial backup on startup (delay 30 seconds to ensure DB is ready)
+        setTimeout(() => {
+            console.log('💾 [BACKUP] Running initial backup...');
+            const backupFile = backupDatabase();
+            
+            // Upload to S3 if configured
+            if (backupFile && process.env.S3_BACKUP_BUCKET) {
+                uploadToS3(backupFile).catch(err => {
+                    console.error('❌ [BACKUP] S3 upload failed:', err);
+                });
+            }
+        }, 30000); // 30 seconds delay
+        
+        // Schedule periodic backup
+        const backupInterval = parseInt(process.env.BACKUP_INTERVAL_HOURS || '24') * 60 * 60 * 1000;
+        setInterval(() => {
+            console.log('💾 [BACKUP] Running scheduled backup...');
+            const backupFile = backupDatabase();
+            if (backupFile && process.env.S3_BACKUP_BUCKET) {
+                uploadToS3(backupFile).catch(err => {
+                    console.error('❌ [BACKUP] S3 upload failed:', err);
+                });
+            }
+        }, backupInterval);
+        
+        console.log(`✅ [BACKUP] Auto-backup enabled (every ${process.env.BACKUP_INTERVAL_HOURS || '24'} hours)`);
+    } catch (err) {
+        console.error('❌ [BACKUP] Failed to initialize backup system:', err);
+    }
+}
