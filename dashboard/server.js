@@ -64,9 +64,10 @@ app.use(session({
     resave: false,
     saveUninitialized: false, // Changed to false for security
     cookie: {
-        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+        secure: false, // Set to false if not using HTTPS (set to true only with HTTPS)
         httpOnly: true, // Prevent XSS
-        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+        maxAge: 24 * 60 * 60 * 1000, // 24 hours
+        sameSite: 'lax' // CSRF protection
     }
 }));
 app.set('view engine', 'ejs');
@@ -97,10 +98,23 @@ function startDashboard(client) {
 
     app.post('/login', loginLimiter, (req, res) => {
         const { password } = req.body;
-        if (password === ADMIN_PASSWORD) {
+        
+        // Debug log (remove in production if needed)
+        if (process.env.NODE_ENV !== 'production') {
+            console.log('[LOGIN] Attempt - Password provided:', password ? 'Yes' : 'No');
+            console.log('[LOGIN] Expected password:', ADMIN_PASSWORD);
+        }
+        
+        if (password && password === ADMIN_PASSWORD) {
             req.session.loggedin = true;
             req.session.userId = req.ip; // Track login IP
-            res.redirect('/admin');
+            req.session.save((err) => {
+                if (err) {
+                    console.error('[LOGIN] Session save error:', err);
+                    return res.render('login', { error: 'Error saving session. Please try again.' });
+                }
+                res.redirect('/admin');
+            });
         } else {
             res.render('login', { error: 'Password Salah!' });
         }

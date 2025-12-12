@@ -1,0 +1,18 @@
+{
+    "files.associations": {
+        "*.ejs": "html"
+    },
+    "html.validate.scripts": false,
+    "html.validate.styles": false,
+    "javascript.validate.enable": false,
+    "[ejs]": {
+        "editor.defaultFormatter": null,
+        "files.associations": {
+            "*.ejs": "html"
+        }
+    },
+    "files.exclude": {
+        "**/.ejslintignore": false
+    }
+}
+

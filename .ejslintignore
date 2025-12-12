@@ -1,0 +1,4 @@
+# EJS Linter Ignore
+# Linter tidak memahami EJS syntax, jadi error yang muncul adalah false positive
+dashboard/views/*.ejs
+
