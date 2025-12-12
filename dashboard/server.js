@@ -210,6 +210,8 @@ function startDashboard(client) {
 
     // 3. ADMIN DASHBOARD
     app.get('/admin', checkAuth, async (req, res) => {
+        // Add base URL to template for HTTP links
+        const baseUrl = `http://${req.get('host')}`;
         const roles = db.prepare('SELECT * FROM role_aktif').all();
 
         const roleData = [];
