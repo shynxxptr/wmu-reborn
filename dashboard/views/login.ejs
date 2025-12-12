@@ -3,13 +3,24 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta http-equiv="Content-Security-Policy" content="upgrade-insecure-requests">
     <title>Login - Warung Mang Ujang Admin</title>
     <script>
-        // Force HTTP - prevent HTTPS redirect
-        if (window.location.protocol === 'https:') {
-            window.location.href = window.location.href.replace('https://', 'http://');
-        }
+        // Force HTTP - prevent HTTPS redirect (AGGRESSIVE)
+        (function() {
+            if (window.location.protocol === 'https:') {
+                var httpUrl = window.location.href.replace('https://', 'http://');
+                console.log('[FORCE HTTP] Redirecting from HTTPS to HTTP:', httpUrl);
+                window.location.replace(httpUrl);
+                return;
+            }
+            // Also check if page loaded via HTTPS in history
+            if (document.referrer && document.referrer.startsWith('https://')) {
+                var currentUrl = window.location.href;
+                if (currentUrl.startsWith('http://')) {
+                    console.log('[FORCE HTTP] Already HTTP, good!');
+                }
+            }
+        })();
     </script>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -250,7 +261,7 @@
             loginButton.style.pointerEvents = 'auto';
             loginButton.style.cursor = 'pointer';
 
-            // Handle form submission - use normal form submit with redirect fallback
+            // Handle form submission - SIMPLE approach
             loginForm.addEventListener('submit', (e) => {
                 const password = passwordInput.value.trim();
                 
@@ -260,20 +271,12 @@
                     return false;
                 }
 
-                // Disable button during submission
+                // Disable button
                 loginButton.disabled = true;
                 loginButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memproses...';
                 
-                // Fallback: If redirect doesn't happen in 2 seconds, force redirect
-                setTimeout(() => {
-                    // Check if we're still on login page
-                    if (window.location.pathname === '/login' && loginButton.disabled) {
-                        console.log('[LOGIN] Fallback redirect triggered');
-                        window.location.href = '/admin';
-                    }
-                }, 2000);
-                
-                // Let form submit normally - browser will handle redirect
+                // Let form submit normally - server will redirect
+                // No preventDefault - let browser handle it naturally
                 return true;
             });
 

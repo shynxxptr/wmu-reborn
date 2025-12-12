@@ -64,8 +64,22 @@ const loginLimiter = rateLimit({
 
 app.use('/api/', limiter);
 
+// Body parser - MUST be before session
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
+
+// Force HTTP middleware - MUST be early
+app.use((req, res, next) => {
+    // Remove HSTS header
+    res.removeHeader('Strict-Transport-Security');
+    
+    // Redirect HTTPS to HTTP
+    if (req.header('x-forwarded-proto') === 'https' || req.protocol === 'https') {
+        return res.redirect(`http://${req.get('host')}${req.url}`);
+    }
+    next();
+});
+
 app.use(session({
     secret: SESSION_SECRET,
     resave: true, // Set to true to ensure session is saved
@@ -83,8 +97,13 @@ app.set('views', path.join(__dirname, 'views'));
 app.use(express.static(path.join(__dirname, '../public')));
 
 function checkAuth(req, res, next) {
-    if (req.session.loggedin) next();
-    else res.redirect('/login');
+    // AUTH DISABLED - Allow all access
+    // WARNING: This removes security! Only use for testing!
+    next();
+    
+    // Original auth code (disabled):
+    // if (req.session.loggedin) next();
+    // else res.redirect('/login');
 }
 
 // Fungsi Helper untuk Format Username
@@ -125,10 +144,21 @@ function startDashboard(client) {
         next();
     });
 
-    // 1. LOGIN
+    // 0. TEST ENDPOINT (untuk verifikasi server bekerja)
+    app.get('/test', (req, res) => {
+        res.json({ 
+            status: 'OK', 
+            message: 'Server is working!',
+            protocol: req.protocol,
+            host: req.get('host'),
+            url: req.url
+        });
+    });
+
+    // 1. LOGIN (Redirect to admin since auth is disabled)
     app.get('/login', (req, res) => {
-        console.log('[LOGIN] GET request received');
-        res.render('login', { error: null });
+        // Auth disabled - redirect langsung ke admin
+        res.redirect('/admin');
     });
 
     app.post('/login', (req, res, next) => {
@@ -173,9 +203,9 @@ function startDashboard(client) {
         res.redirect('/login');
     });
 
-    // 2. ROOT REDIRECT TO LOGIN
+    // 2. ROOT REDIRECT TO ADMIN (since auth is disabled)
     app.get('/', (req, res) => {
-        res.redirect('/login');
+        res.redirect('/admin');
     });
 
     // 3. ADMIN DASHBOARD
