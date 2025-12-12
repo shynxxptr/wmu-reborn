@@ -730,6 +730,74 @@ module.exports = {
 
         // --- 5. ADMIN COMMANDS ---
 
+        // !adminhelp - Show all admin commands
+        if (content === '!adminhelp' || content === '!admin') {
+            const isAdmin = db.isAdmin(userId);
+            if (!isAdmin) {
+                return message.reply('❌ **Admin only!** Command ini hanya untuk admin bot.');
+            }
+
+            const embed = new EmbedBuilder()
+                .setTitle('🛡️ **ADMIN COMMAND LIST**')
+                .setDescription('Berikut adalah daftar lengkap command khusus Admin Bot:')
+                .setColor('#FF0000')
+                .addFields(
+                    {
+                        name: '👤 **User Management**',
+                        value: '`!tambahsaldo @user <jumlah>` - Tambah saldo user\n' +
+                               '`!setmoney @user <jumlah>` - Set saldo user (absolute)\n' +
+                               '`!resetmoney confirm` - Reset semua saldo user ke 0\n' +
+                               '`!blacklist @user` - Blacklist user dari leaderboard\n' +
+                               '`!unblacklist @user` - Unblacklist user dari leaderboard\n' +
+                               '`!setleaderboardrole <rank> <role_id>` - Set role untuk leaderboard'
+                    },
+                    {
+                        name: '💬 **Bot Control**',
+                        value: '`!say <pesan>` - Kirim pesan sebagai bot\n' +
+                               '`!mangujang <pesan>` - Alias untuk !say'
+                    },
+                    {
+                        name: '🧪 **Testing & Debug**',
+                        value: '`!testall` - Test semua command bot'
+                    },
+                    {
+                        name: '📋 **Slash Commands (Discord)**',
+                        value: '`/add-admin` - Tambah admin baru\n' +
+                               '`/remove-admin` - Hapus admin\n' +
+                               '`/list-admins` - Lihat daftar admin\n' +
+                               '`/admin-panel` - Panel admin (Role & Stok)\n' +
+                               '`/set-luck` - Set luck penalty user\n' +
+                               '`/config-penalty` - Atur batas auto-penalty\n' +
+                               '`/give-ticket` - Kirim tiket ke user\n' +
+                               '`/check-all` - Cek seluruh inventaris user\n' +
+                               '`/create-flashsale` - Buat flash sale\n' +
+                               '`/giveaway start` - Mulai giveaway\n' +
+                               '`/giveaway reroll` - Reroll pemenang giveaway\n' +
+                               '`/setup-panel` - Pasang panel role manager\n' +
+                               '`/setup-shop` - Pasang panel shop\n' +
+                               '`/test-welcome` - Simulasi welcome message'
+                    },
+                    {
+                        name: '🌐 **Web Dashboard**',
+                        value: 'Akses dashboard admin di: `http://47.129.58.40:2560/admin`\n' +
+                               '**Fitur dashboard:**\n' +
+                               '• Economy Management\n' +
+                               '• User Management\n' +
+                               '• Moderation Tools\n' +
+                               '• Leaderboard Management\n' +
+                               '• Event Management\n' +
+                               '• Analytics & Statistics\n' +
+                               '• Limiter & Max Bet Management\n' +
+                               '• Say Message (Bot Message Sender)\n' +
+                               '• Dan banyak lagi...'
+                    }
+                )
+                .setFooter({ text: 'Hanya Admin Bot yang bisa menggunakan command ini.' })
+                .setTimestamp();
+
+            return message.reply({ embeds: [embed] });
+        }
+
         // !say <message> (Admin Chat)
         if (content.startsWith('!say ') || content.startsWith('!mangujang ')) {
             if (!message.member.permissions.has('Administrator')) return;
