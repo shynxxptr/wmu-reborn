@@ -249,6 +249,21 @@ module.exports = {
             return message.reply(`💰 **Dompet ${message.author.username}:**\nRp ${formatMoney(saldo)}`);
         }
 
+        // 1.5 CEK GLOBAL JACKPOT
+        if (content === '!jackpot') {
+            const jackpotPool = db.getJackpot();
+            const embed = new EmbedBuilder()
+                .setTitle('🎰 GLOBAL JACKPOT POOL')
+                .setDescription(`**Rp ${formatMoney(jackpotPool)}**`)
+                .setColor('#FFD700')
+                .addFields(
+                    { name: '💡 Info', value: '• 2% dari setiap bet masuk ke pool\n• Chance menang: 0.0001% (1 in 1,000,000)\n• Auto masuk ke dompet utama kalau menang!' }
+                )
+                .setFooter({ text: 'Semoga hokimu datang! 🍀' })
+                .setTimestamp();
+            return message.reply({ embeds: [embed] });
+        }
+
         // 2. CEK APAKAH INI COMMAND JOB
         if (JOBS[content]) {
             const job = JOBS[content];
