@@ -90,6 +90,30 @@ db.exec(`
     )
 `);
 
+// 8. Wealth Limiter (Sistem Rungkad Bertingkat)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_wealth_limits (
+        user_id TEXT PRIMARY KEY,
+        level_cleared INTEGER DEFAULT 0,
+        first_breach_time INTEGER DEFAULT NULL
+    )
+`);
+
+// --- WEALTH LIMITER HELPERS ---
+db.getWealthStatus = (userId) => {
+    let row = db.prepare('SELECT * FROM user_wealth_limits WHERE user_id = ?').get(userId);
+    if (!row) {
+        db.prepare('INSERT INTO user_wealth_limits (user_id) VALUES (?)').run(userId);
+        row = { user_id: userId, level_cleared: 0, first_breach_time: null };
+    }
+    return row;
+};
+
+db.updateWealthStatus = (userId, levelCleared, firstBreachTime) => {
+    db.prepare('UPDATE user_wealth_limits SET level_cleared = ?, first_breach_time = ? WHERE user_id = ?')
+        .run(levelCleared, firstBreachTime, userId);
+};
+
 // 7. Audit Logs (Moderation)
 db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -800,7 +824,7 @@ db.joinEskul = (userId, eskulName) => {
 db.getEskul = (userId) => {
     try {
         const row = db.prepare('SELECT * FROM user_eskul WHERE user_id = ?').get(userId);
-        return row ? row.eskul_name : null;
+        return row || null;
     } catch (e) { return null; }
 };
 

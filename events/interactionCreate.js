@@ -9,6 +9,7 @@ const crashHandler = require('../handlers/crashHandler.js');
 const minesweeperHandler = require('../handlers/minesweeperHandler.js');
 const unoHandler = require('../handlers/unoHandler.js');
 const gamblingHandler = require('../handlers/gamblingHandler.js');
+const blackjackHandler = require('../handlers/blackjackHandler.js');
 const db = require('../database.js');
 
 module.exports = {
@@ -135,6 +136,10 @@ module.exports = {
                 await kantinHandler.handleEat(interaction, selected);
                 return;
             }
+            if (id.startsWith('kantin_party_select_')) {
+                await kantinHandler.handlePartySelect(interaction);
+                return;
+            }
 
             // F. GAME HANDLER (PALAK / RPS)
             if (id.startsWith('palak_') || id.startsWith('rps_')) {
@@ -163,6 +168,12 @@ module.exports = {
             // J. SLOT HANDLER (Stop Button)
             if (id.startsWith('slot_')) {
                 await gamblingHandler.handleSlotInteraction(interaction);
+                return;
+            }
+
+            // K. BLACKJACK HANDLER
+            if (id.startsWith('bj_')) {
+                await blackjackHandler.handleInteraction(interaction);
                 return;
             }
 

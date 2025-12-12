@@ -56,11 +56,15 @@ module.exports = {
             });
 
             // C. ENERGI KERJA
-            const MAX_JOBS = 5;
+            const userEskul = db.getEskul(userId);
+            let limitBonus = 0;
+            if (userEskul && userEskul.eskul_name === 'futsal') limitBonus = 5;
+
+            const MAX_JOBS = 5 + limitBonus;
             const remainingJobs = MAX_JOBS - (user.last_work_count || 0);
             embed.addFields({
                 name: '⚡ Energi Kerja',
-                value: `Sisa Jatah Kerja: **${remainingJobs}/${MAX_JOBS}** jam ini.`
+                value: `Sisa Jatah Kerja: **${remainingJobs}/${MAX_JOBS}** jam ini.${limitBonus > 0 ? ` (Buff +${limitBonus})` : ''}`
             });
 
             embed.setFooter({ text: 'Gunakan /kantin untuk memulihkan kondisi.' });

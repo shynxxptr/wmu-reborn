@@ -1,5 +1,6 @@
 const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
 const Canvas = require('canvas');
+const db = require('../database.js');
 
 async function showLeaderboard(source, db, type = 'global', eventId = null) {
     // Determine if source is Interaction or Message

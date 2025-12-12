@@ -22,7 +22,10 @@ module.exports = {
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
-        if (lower === 'all' || lower === 'allin') bet = balance;
+        if (lower === 'all' || lower === 'allin') {
+            bet = Math.min(balance, 10000000);
+            if (bet > 10000000) bet = 10000000; // Safety Net
+        }
         else if (lower.endsWith('k')) bet = parseFloat(lower) * 1000;
         else if (lower.endsWith('m') || lower.endsWith('jt')) bet = parseFloat(lower) * 1000000;
         else bet = parseInt(lower);
@@ -32,10 +35,11 @@ module.exports = {
 
         // Cooldown Check (20 Seconds)
         const now = Date.now();
-        const cooldownTime = 20000;
+        const cooldownTime = 5000;
         const lastPlay = crashCooldowns.get(userId) || 0;
         if (now - lastPlay < cooldownTime) {
-            return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastPlay + cooldownTime) / 1000)}:R> lagi.`);
+            const remaining = Math.ceil((cooldownTime - (now - lastPlay)) / 1000);
+            return message.reply(`⏳ **Sabar bang!** Tunggu ${remaining} detik lagi.`);
         }
         crashCooldowns.set(userId, now);
 

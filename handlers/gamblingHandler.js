@@ -14,7 +14,6 @@ const activeSlots = new Map();
 const mathCooldowns = new Map();
 const coinflipCooldowns = new Map();
 const slotsCooldowns = new Map();
-const patchNoteSeen = new Set();
 
 module.exports = {
     async handleGambling(message, command, args) {
@@ -22,27 +21,7 @@ module.exports = {
         const content = message.content.toLowerCase().trim();
         const now = Date.now();
 
-        // --- PATCH NOTE (ONE TIME) ---
-        if (!patchNoteSeen.has(userId)) {
-            patchNoteSeen.add(userId);
-            const patchEmbed = new EmbedBuilder()
-                .setTitle('📢 UPDATE WARUNG MANG UJANG 📢')
-                .setDescription(
-                    `**Fitur Baru & Balancing:**\n` +
-                    `1. **!math**: Profit naik (Easy 20%, Med 50%, Hard 100%). Ada Cooldown 20s.\n` +
-                    `2. **!bs (BigSlot)**: Streak lebih ramah, Max Bet 100jt (Buy Max 1jt), Cooldown 20s.\n` +
-                    `3. **!saham**: Crash lebih jarang (3%), Max Bet 100jt, Cooldown 20s.\n` +
-                    `4. **!cf (Coinflip)**: Payout jadi **2x** (Profit 100%), Cooldown 5s.\n` +
-                    `5. **!slots**: Cooldown 10s, Max Bet 100jt.\n\n` +
-                    `*Pesan ini akan hilang dalam 60 detik.*`
-                )
-                .setColor('#00FF00')
-                .setFooter({ text: 'Selamat bermain & jangan rungkad!' });
 
-            message.channel.send({ embeds: [patchEmbed] }).then(msg => {
-                setTimeout(() => msg.delete().catch(() => { }), 60000);
-            });
-        }
 
         // Helper for Global Jackpot
         const handleJackpot = (betAmount, user) => {
@@ -68,7 +47,8 @@ module.exports = {
             const lastDoa = doaCooldowns.get(userId) || 0;
 
             if (now - lastDoa < cooldownTime) {
-                return message.reply(`🛑 **Sabar!** Mang Ujang lagi wirid.\nCoba lagi <t:${Math.ceil((lastDoa + cooldownTime) / 1000)}:R>.`);
+                const remaining = Math.ceil((cooldownTime - (now - lastDoa)) / 1000);
+                return message.reply(`⏳ **Sabar bang!** Mang Ujang lagi wirid.\nCoba lagi ${remaining} detik lagi.`);
             }
 
             const cost = 2000;
@@ -92,7 +72,7 @@ module.exports = {
             return message.reply(`🙏 **Doa Terkabul!**\nMang Ujang mendoakanmu... Hoki bertambah **${luckBoost}%** selama 7 menit! 🍀`);
         }
 
-        // Helper to get effective luck (Base + Penalty)
+        // Helper to get effective luck (Base + Penalty + Wealth Limiter)
         const getEffectiveLuck = (uid) => {
             // 1. Base Luck from Doa Ujang
             let luck = 0;
@@ -103,14 +83,78 @@ module.exports = {
 
             // 2. Manual Penalty
             const penalty = db.getPenalty(uid);
-            luck += penalty; // penalty is usually negative, e.g. -50
+            luck += penalty;
 
-            // 3. Auto Penalty (High Balance)
-            const userBal = db.prepare('SELECT uang_jajan FROM user_economy WHERE user_id = ?').get(uid);
-            if (userBal) {
-                const threshold = db.getSystemVar('auto_penalty_threshold', 1000000000); // Default 1Milyar
-                if (userBal.uang_jajan > threshold) {
-                    luck -= 90; // Massive penalty for rich people
+            // 3. DYNAMIC WEALTH LIMITER (Sistem Rungkad Bertingkat)
+            const wealth = db.getWealthStatus(uid);
+            const userBal = db.getBalance(uid);
+
+            // Threshold Configuration
+            const levels = [
+                { limit: 100000000, duration: 6 * 3600 * 1000 },   // 100 Juta - 6 Jam
+                { limit: 500000000, duration: 12 * 3600 * 1000 },  // 500 Juta - 12 Jam
+                { limit: 1000000000, duration: 24 * 3600 * 1000 }, // 1 Milyar - 24 Jam
+                { limit: 10000000000, duration: 48 * 3600 * 1000 },// 10 Milyar - 2 Hari
+                { limit: 50000000000, duration: 72 * 3600 * 1000 },// 50 Milyar - 3 Hari
+                { limit: 100000000000, duration: 120 * 3600 * 1000 }// 100 Milyar - 5 Hari
+            ];
+
+            const currentLevelIdx = wealth.level_cleared;
+
+            // If user has cleared all levels, no more limits (or add more levels later)
+            if (currentLevelIdx < levels.length) {
+                const target = levels[currentLevelIdx];
+
+                // Check Breach
+                if (userBal >= target.limit) {
+                    const now = Date.now();
+
+                    if (!wealth.first_breach_time) {
+                        // First time hitting limit -> Start Timer
+                        db.updateWealthStatus(uid, wealth.level_cleared, now);
+                        luck -= 90; // Immediate Penalty
+                        // console.log(`[LIMITER] User ${uid} hit ${target.limit}. Timer started.`);
+                    } else {
+                        // Timer already running
+                        const elapsed = now - wealth.first_breach_time;
+
+                        if (elapsed >= target.duration) {
+                            // Level Cleared!
+                            db.updateWealthStatus(uid, wealth.level_cleared + 1, null);
+                            // console.log(`[LIMITER] User ${uid} cleared level ${wealth.level_cleared}.`);
+                        } else {
+                            // Still Stuck -> Apply Penalty
+                            // MERCY RULE: If balance drops below 80% of target, pause penalty
+                            if (userBal < (target.limit * 0.8)) {
+                                // Mercy: No Penalty
+                                // console.log(`[LIMITER] User ${uid} in mercy zone.`);
+                            } else {
+                                luck -= 90; // RUNGKAD MODE
+                                // console.log(`[LIMITER] User ${uid} penalized. Time left: ${(target.duration - elapsed)/1000}s`);
+                            }
+                        }
+                    }
+                } else {
+                    // Below limit, but check if timer is running (it doesn't reset!)
+                    if (wealth.first_breach_time) {
+                        const now = Date.now();
+                        const elapsed = now - wealth.first_breach_time;
+                        const target = levels[currentLevelIdx];
+
+                        if (elapsed >= target.duration) {
+                            // Level Cleared (even if balance dropped, they survived the time)
+                            db.updateWealthStatus(uid, wealth.level_cleared + 1, null);
+                        } else {
+                            // Timer running, but balance is low.
+                            // Check Mercy Rule
+                            if (userBal < (target.limit * 0.8)) {
+                                // Mercy: No Penalty
+                            } else {
+                                // Between 80% and 100% -> Penalty applies
+                                luck -= 90;
+                            }
+                        }
+                    }
                 }
             }
 
@@ -119,23 +163,40 @@ module.exports = {
 
         // !coinflip <amount> <h/t>
         if (command === '!coinflip' || command === '!cf') {
-            const amount = parseInt(args[1]);
+            const rawAmount = args[1];
             const choice = args[2]?.toLowerCase(); // head/tail atau h/t
 
-            if (isNaN(amount) || amount <= 0 || !['head', 'tail', 'h', 't'].includes(choice)) {
+            if (!rawAmount || !['head', 'tail', 'h', 't'].includes(choice)) {
                 return message.reply('❌ Format: `!cf <jumlah> <head/tail>`');
             }
+
+            let amount = 0;
+            const currentBalance = db.getBalance(userId);
+            const lowerAmount = rawAmount.toLowerCase();
+
+            if (lowerAmount === 'all' || lowerAmount === 'allin') {
+                amount = Math.min(currentBalance, 10000000);
+                if (amount > 10000000) amount = 10000000; // Safety Net
+            } else if (lowerAmount.endsWith('k')) {
+                amount = parseFloat(lowerAmount) * 1000;
+            } else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) {
+                amount = parseFloat(lowerAmount) * 1000000;
+            } else {
+                amount = parseInt(lowerAmount);
+            }
+
+            if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
             if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
 
             // Cooldown Check (5 Seconds)
             const cfCooldown = 5000;
             const lastCf = coinflipCooldowns.get(userId) || 0;
             if (now - lastCf < cfCooldown) {
-                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastCf + cfCooldown) / 1000)}:R> lagi.`);
+                const remaining = Math.ceil((cfCooldown - (now - lastCf)) / 1000);
+                return message.reply(`⏳ **Sabar bang!** Tunggu ${remaining} detik lagi.`);
             }
             coinflipCooldowns.set(userId, now);
 
-            const currentBalance = db.getBalance(userId);
             if (currentBalance < amount) return message.reply('💸 **Uang gak cukup!** Jangan maksa judi.');
 
             // Deduct Upfront
@@ -175,19 +236,36 @@ module.exports = {
 
         // !slots <amount>
         if (command === '!slots') {
-            const amount = parseInt(args[1]);
-            if (isNaN(amount) || amount <= 0) return message.reply('❌ Format: `!slots <jumlah>`');
+            const rawAmount = args[1];
+            if (!rawAmount) return message.reply('❌ Format: `!slots <jumlah>`');
+
+            let amount = 0;
+            const currentBalance = db.getBalance(userId);
+            const lowerAmount = rawAmount.toLowerCase();
+
+            if (lowerAmount === 'all' || lowerAmount === 'allin') {
+                amount = Math.min(currentBalance, 10000000);
+                if (amount > 10000000) amount = 10000000; // Safety Net
+            } else if (lowerAmount.endsWith('k')) {
+                amount = parseFloat(lowerAmount) * 1000;
+            } else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) {
+                amount = parseFloat(lowerAmount) * 1000000;
+            } else {
+                amount = parseInt(lowerAmount);
+            }
+
+            if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
             if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
 
             // Cooldown Check (10 Seconds)
             const slotCooldown = 10000;
             const lastSlot = slotsCooldowns.get(userId) || 0;
             if (now - lastSlot < slotCooldown) {
-                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastSlot + slotCooldown) / 1000)}:R> lagi.`);
+                const remaining = Math.ceil((slotCooldown - (now - lastSlot)) / 1000);
+                return message.reply(`⏳ **Sabar bang!** Tunggu ${remaining} detik lagi.`);
             }
             slotsCooldowns.set(userId, now);
 
-            const currentBalance = db.getBalance(userId);
             if (currentBalance < amount) return message.reply('💸 **Uang gak cukup!**');
 
             // Deduct bet first
@@ -270,8 +348,13 @@ module.exports = {
 
             // Parse amount with suffixes
             let amount = 0;
+            const currentBalance = db.getBalance(userId);
             const lowerAmount = rawAmount.toLowerCase();
-            if (lowerAmount.endsWith('k')) {
+
+            if (lowerAmount === 'all' || lowerAmount === 'allin') {
+                amount = Math.min(currentBalance, 10000000);
+                if (amount > 10000000) amount = 10000000; // Safety Net
+            } else if (lowerAmount.endsWith('k')) {
                 amount = parseFloat(lowerAmount) * 1000;
             } else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) {
                 amount = parseFloat(lowerAmount) * 1000000;
@@ -286,11 +369,11 @@ module.exports = {
             const mathCooldownTime = 20000;
             const lastMath = mathCooldowns.get(userId) || 0;
             if (now - lastMath < mathCooldownTime) {
-                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastMath + mathCooldownTime) / 1000)}:R> lagi.`);
+                const remaining = Math.ceil((mathCooldownTime - (now - lastMath)) / 1000);
+                return message.reply(`⏳ **Sabar bang!** Tunggu ${remaining} detik lagi.`);
             }
             mathCooldowns.set(userId, now);
 
-            const currentBalance = db.getBalance(userId);
             if (currentBalance < amount) return message.reply('💸 **Uang gak cukup!** Kerja dulu sana.');
 
             // Deduct bet
@@ -431,7 +514,8 @@ module.exports = {
             const bsCooldown = 20000; // 20 Detik
             const lastBs = bigSlotCooldowns.get(userId) || 0;
             if (now - lastBs < bsCooldown) {
-                return message.reply(`⏳ **Sabar bang!** Tunggu <t:${Math.ceil((lastBs + bsCooldown) / 1000)}:R> lagi.`);
+                const remaining = Math.ceil((bsCooldown - (now - lastBs)) / 1000);
+                return message.reply(`⏳ **Sabar bang!** Tunggu ${remaining} detik lagi.`);
             }
             bigSlotCooldowns.set(userId, now);
 
@@ -448,8 +532,13 @@ module.exports = {
 
             // Parse Amount
             let amount = 0;
+            const currentBalance = db.getBalance(userId);
             const lowerAmount = rawAmount.toLowerCase();
-            if (lowerAmount.endsWith('k')) amount = parseFloat(lowerAmount) * 1000;
+
+            if (lowerAmount === 'all' || lowerAmount === 'allin') {
+                amount = Math.min(currentBalance, 10000000);
+                if (amount > 10000000) amount = 10000000; // Safety Net
+            } else if (lowerAmount.endsWith('k')) amount = parseFloat(lowerAmount) * 1000;
             else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) amount = parseFloat(lowerAmount) * 1000000;
             else amount = parseInt(rawAmount);
 
@@ -482,7 +571,6 @@ module.exports = {
             missionHandler.trackMission(userId, 'play_slots', requestedSpins);
 
             // Initial Check
-            const currentBalance = db.getBalance(userId);
             if (currentBalance < costPerSpin) {
                 return message.reply(`💸 **Uang gak cukup!** Butuh Rp ${formatMoney(costPerSpin)} per spin.`);
             }

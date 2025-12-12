@@ -37,12 +37,16 @@ module.exports = {
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
-        if (lower === 'all' || lower === 'allin') bet = balance;
+        if (lower === 'all' || lower === 'allin') {
+            bet = Math.min(balance, 10000000);
+            if (bet > 10000000) bet = 10000000; // Safety Net
+        }
         else if (lower.endsWith('k')) bet = parseFloat(lower) * 1000;
         else if (lower.endsWith('m') || lower.endsWith('jt')) bet = parseFloat(lower) * 1000000;
         else bet = parseInt(lower);
 
         if (isNaN(bet) || bet <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
+        if (bet > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
         if (balance < bet) return message.reply('💸 **Uang gak cukup!**');
 
         // Deduct Bet

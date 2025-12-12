@@ -28,11 +28,15 @@ module.exports = {
         return totalSeconds;
     },
 
-    formatMoney: (amount) => {
+    formatMoneyShort: (amount) => {
         if (amount >= 1000000000000) return (amount / 1000000000000).toFixed(1) + 'T';
         if (amount >= 1000000000) return (amount / 1000000000).toFixed(1) + 'M';
         if (amount >= 1000000) return (amount / 1000000).toFixed(1) + 'jt';
         if (amount >= 1000) return (amount / 1000).toFixed(1) + 'k';
         return amount.toString();
+    },
+
+    formatMoney: (amount) => {
+        return amount.toLocaleString('id-ID');
     }
 };

@@ -96,8 +96,9 @@ module.exports = {
         const userId = message.author.id;
 
         // --- 0. CEK PENJARA ---
+        // --- 0. CEK PENJARA ---
         const jail = db.isJailed(userId);
-        if (jail) {
+        if (jail && content.startsWith('!')) {
             return message.reply(`🔒 **KAMU DIPENJARA!**\nAlasan: ${jail.reason}\nBebas dalam: <t:${Math.ceil(jail.release_time / 1000)}:R>.\n\n*Jangan nakal lagi ya!*`);
         }
 
@@ -137,9 +138,9 @@ module.exports = {
             let thirstRed = 15;
             let stressRed = (job.stress_add || 5);
 
-            if (userEskul === 'futsal') limitBonus = 5;
-            if (userEskul === 'pramuka') { hungerRed = 5; thirstRed = 7; } // 50% Reduction
-            if (userEskul === 'pmr') stressRed = Math.ceil(stressRed / 2); // 50% Reduction
+            if (userEskul && userEskul.eskul_name === 'futsal') limitBonus = 5;
+            if (userEskul && userEskul.eskul_name === 'pramuka') { hungerRed = 5; thirstRed = 7; } // 50% Reduction
+            if (userEskul && userEskul.eskul_name === 'pmr') stressRed = Math.ceil(stressRed / 2); // 50% Reduction
 
             // Cek Limit (Updated with Bonus)
             const maxJobs = MAX_JOBS_PER_HOUR + limitBonus;

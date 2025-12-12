@@ -50,7 +50,7 @@ module.exports = {
 
             const current = db.getEskul(userId);
             if (current) {
-                embed.addFields({ name: '📂 Status Kamu', value: `Kamu anggota **${ESKUL_LIST[current].label}**.` });
+                embed.addFields({ name: '📂 Status Kamu', value: `Kamu anggota **${ESKUL_LIST[current.eskul_name].label}**.` });
             }
 
             return message.reply({ embeds: [embed] });

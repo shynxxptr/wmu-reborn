@@ -182,24 +182,23 @@ module.exports = {
             });
         }
 
-        // 2. LOGIKA ALKOHOL (MODAL TAG TEMAN)
+        // 2. LOGIKA ALKOHOL (MODAL TAG TEMAN -> USER SELECT MENU)
         if (isWarungItem && menu.type === 'alkohol') {
-            const modal = new ModalBuilder()
-                .setCustomId(`modal_mabuk_${itemKey}`)
-                .setTitle('🍻 Pesta Miras (Ajak Teman)');
+            const { UserSelectMenuBuilder, ActionRowBuilder, ComponentType } = require('discord.js');
 
-            const friendsInput = new TextInputBuilder()
-                .setCustomId('friends_input')
-                .setLabel('Tag 3-5 teman kamu (Wajib!)')
-                .setPlaceholder('@teman1 @teman2 @teman3 ...')
-                .setStyle(TextInputStyle.Paragraph)
-                .setMinLength(10)
-                .setRequired(true);
+            const userSelect = new UserSelectMenuBuilder()
+                .setCustomId(`kantin_party_select_${itemKey}`)
+                .setPlaceholder('Pilih 3-5 teman mabukmu...')
+                .setMinValues(3)
+                .setMaxValues(5);
 
-            const firstActionRow = new ActionRowBuilder().addComponents(friendsInput);
-            modal.addComponents(firstActionRow);
+            const row = new ActionRowBuilder().addComponents(userSelect);
 
-            await interaction.showModal(modal);
+            await interaction.reply({
+                content: `🍻 **PESTA MIRAS!**\nKamu akan membuka **${menu.label}**.\nSilakan pilih 3-5 teman untuk diajak mabuk bareng!`,
+                components: [row],
+                flags: [MessageFlags.Ephemeral]
+            });
             return;
         }
 
@@ -207,26 +206,13 @@ module.exports = {
         await this.processConsume(interaction, user, itemKey, menu, isWarungItem, item.jumlah);
     },
 
-    async handleMabukModal(interaction) {
-        const itemKey = interaction.customId.replace('modal_mabuk_', '');
-        const friendsInput = interaction.fields.getTextInputValue('friends_input');
+    // Handle User Select Menu for Party
+    async handlePartySelect(interaction) {
+        const itemKey = interaction.customId.replace('kantin_party_select_', '');
+        const friendsIds = interaction.values; // Array of User IDs
         const user = interaction.user;
 
-        // Cek Tag (Minimal 3, Maksimal 5 Unique User ID)
-        const mentionedIds = friendsInput.match(/<@!?(\d+)>/g);
-        let uniqueIds = mentionedIds ? [...new Set(mentionedIds)] : [];
-
-        // Clean IDs
-        uniqueIds = uniqueIds.map(id => id.replace(/[<@!>]/g, ''));
-        // Remove self if tagged
-        uniqueIds = uniqueIds.filter(id => id !== user.id);
-
-        if (uniqueIds.length < 3 || uniqueIds.length > 5) {
-            return interaction.reply({
-                content: '🚫 **Party Gagal!**\nMinimal ajak 3 teman, maksimal 5 teman. Jangan pelit, jangan juga kebanyakan!',
-                flags: [MessageFlags.Ephemeral]
-            });
-        }
+        console.log(`[PARTY DEBUG] User ${user.id} selected friends: ${friendsIds.join(', ')} for item ${itemKey}`);
 
         // Ambil Menu Info
         const { MENU_WARUNG } = require('./warungHandler.js');
@@ -235,11 +221,62 @@ module.exports = {
         // Cek Inventaris Lagi (Prevent exploit)
         const item = db.prepare('SELECT * FROM inventaris WHERE user_id = ? AND jenis_tiket = ?').get(user.id, itemKey);
         if (!item || item.jumlah <= 0) {
-            return interaction.reply({ content: `❌ Barang sudah habis!`, flags: [MessageFlags.Ephemeral] });
+            return interaction.update({ content: `❌ Barang sudah habis!`, components: [], embeds: [] });
         }
 
-        // Proses Konsumsi untuk HOST
-        await this.processConsume(interaction, user, itemKey, menu, true, item.jumlah, uniqueIds);
+        // UX: Remove dropdown immediately (Ephemeral)
+        await interaction.update({ content: '✅ **Minuman dituangkan...**', components: [], embeds: [] });
+
+        // --- LOGIKA ALKOHOL (PUBLIC MESSAGE) ---
+        const allDrinkers = [user.id, ...friendsIds];
+        const drunkEvents = [
+            "muntah di sepatu teman",
+            "nangis inget mantan",
+            "joget di atas meja",
+            "ketiduran di kamar mandi",
+            "nelpon dosen jam 2 pagi",
+            "ngaku-ngaku jadi ultramen",
+            "salto dari meja bar",
+            "nyanyi lagu galau kenceng banget"
+        ];
+
+        let partyLog = "";
+
+        // Loop Drinkers
+        allDrinkers.forEach(drinkerId => {
+            // Ensure user exists
+            const checkUser = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(drinkerId);
+            if (!checkUser) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(drinkerId);
+
+            // Apply Effect (Reset Stats & Bonus Work Limit)
+            db.prepare(`
+                UPDATE user_economy SET 
+                hunger = 0, 
+                thirst = 0, 
+                stress = 0,
+                last_work_count = last_work_count - 25,
+                last_work_time = ?
+                WHERE user_id = ?
+            `).run(Date.now(), drinkerId);
+
+            // Random Event for Friends
+            if (drinkerId !== user.id) {
+                const randomEvent = drunkEvents[Math.floor(Math.random() * drunkEvents.length)];
+                partyLog += `\n- <@${drinkerId}>: *${randomEvent}*`;
+            }
+        });
+
+        // Kurangi Stok Host
+        db.prepare('UPDATE inventaris SET jumlah = jumlah - 1 WHERE user_id = ? AND jenis_tiket = ?').run(user.id, itemKey);
+
+        // Send PUBLIC Message
+        const embed = new EmbedBuilder()
+            .setColor('#36393F')
+            .setTitle('🥴 PESTA MIRAS PECAH!')
+            .setDescription(`**${user.username}** membuka **${menu.label}** untuk ${friendsIds.length} temannya!\n\n**Efek Party:**${partyLog}\n\n✨ **SEMUA ORANG:**\n• Stats RESET ke 0 (Segar Bugar)\n• Limit Kerja +25x (Mode Kuli)`)
+            .setFooter({ text: `Sisa ${menu.label}: ${item.jumlah - 1} buah` });
+
+        await interaction.channel.send({ content: `<@${user.id}> ${friendsIds.map(id => `<@${id}>`).join(' ')}`, embeds: [embed] });
     },
 
     async processConsume(interaction, user, itemKey, menu, isWarungItem, currentStock, friendsIds = []) {
@@ -353,7 +390,7 @@ module.exports = {
 
         // EFEK KHUSUS: Kuku Bima (Job Limit +2)
         if (itemKey === 'kuku_bima') {
-            db.prepare('UPDATE user_economy SET last_work_count = MAX(0, last_work_count - 2) WHERE user_id = ?').run(user.id);
+            db.prepare('UPDATE user_economy SET last_work_count = last_work_count - 2 WHERE user_id = ?').run(user.id);
             effectText += '\n⚡ **STAMINA!** Limit kerja bertambah (+2x).';
         }
 
