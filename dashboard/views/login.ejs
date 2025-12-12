@@ -243,13 +243,12 @@
             loginButton.style.pointerEvents = 'auto';
             loginButton.style.cursor = 'pointer';
 
-            // Handle form submission
-            loginForm.addEventListener('submit', async (e) => {
-                e.preventDefault(); // Prevent default form submission
-                
+            // Handle form submission - use normal form submit (more reliable)
+            loginForm.addEventListener('submit', (e) => {
                 const password = passwordInput.value.trim();
                 
                 if (!password) {
+                    e.preventDefault();
                     alert('Password harus diisi!');
                     return false;
                 }
@@ -258,43 +257,9 @@
                 loginButton.disabled = true;
                 loginButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memproses...';
                 
-                try {
-                    // Submit form via fetch for better error handling
-                    const formData = new FormData(loginForm);
-                    const response = await fetch('/login', {
-                        method: 'POST',
-                        body: formData,
-                        redirect: 'follow' // Follow redirects
-                    });
-
-                    // Check if response is a redirect
-                    if (response.redirected) {
-                        window.location.href = response.url;
-                        return;
-                    }
-
-                    // If not redirected, check status
-                    if (response.ok) {
-                        // Try to get response text
-                        const text = await response.text();
-                        // If response contains redirect, follow it
-                        if (text.includes('window.location') || response.url.includes('/admin')) {
-                            window.location.href = '/admin';
-                            return;
-                        }
-                    }
-
-                    // If we get here, something went wrong
-                    throw new Error('Login failed');
-                } catch (error) {
-                    console.error('Login error:', error);
-                    // Re-enable button
-                    loginButton.disabled = false;
-                    loginButton.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Masuk';
-                    
-                    // Show error
-                    alert('Error: ' + (error.message || 'Gagal login. Silakan coba lagi.'));
-                }
+                // Let form submit normally - don't prevent default
+                // This is more reliable than fetch for form submissions
+                return true;
             });
 
             // Prevent any overlay from blocking clicks
