@@ -50,9 +50,15 @@ const limiter = rateLimit({
 
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 5, // 5 login attempts per 15 minutes
+    max: 10, // Increase to 10 attempts per 15 minutes
     message: 'Too many login attempts, please try again later.',
-    skipSuccessfulRequests: true
+    skipSuccessfulRequests: true,
+    standardHeaders: true,
+    legacyHeaders: false,
+    handler: (req, res) => {
+        console.log('[LOGIN] Rate limit exceeded for IP:', req.ip);
+        res.status(429).render('login', { error: 'Terlalu banyak percobaan login. Silakan coba lagi dalam 15 menit.' });
+    }
 });
 
 app.use('/api/', limiter);
@@ -106,19 +112,27 @@ function startDashboard(client) {
 
     // 1. LOGIN
     app.get('/login', (req, res) => {
+        console.log('[LOGIN] GET request received');
         res.render('login', { error: null });
     });
 
-    app.post('/login', loginLimiter, (req, res) => {
+    app.post('/login', (req, res, next) => {
+        // Log before rate limiter
+        console.log('[LOGIN] POST request received');
+        console.log('[LOGIN] IP:', req.ip);
+        console.log('[LOGIN] Body:', req.body);
+        next();
+    }, loginLimiter, (req, res) => {
         const { password } = req.body;
         
         // Debug log
-        console.log('[LOGIN] Attempt received');
+        console.log('[LOGIN] Processing login attempt');
         console.log('[LOGIN] Password provided:', password ? 'Yes' : 'No');
         console.log('[LOGIN] Expected password:', ADMIN_PASSWORD);
         console.log('[LOGIN] Password match:', password === ADMIN_PASSWORD);
         
         if (!password) {
+            console.log('[LOGIN] No password provided');
             return res.status(400).render('login', { error: 'Password harus diisi!' });
         }
         
@@ -127,13 +141,14 @@ function startDashboard(client) {
             req.session.userId = req.ip; // Track login IP
             
             console.log('[LOGIN] Success - Setting session and redirecting immediately');
+            console.log('[LOGIN] Session ID:', req.sessionID);
             
             // Redirect immediately - session will auto-save with resave: true
             // Don't wait for callback to avoid hanging
-            res.redirect('/admin');
+            return res.redirect('/admin');
         } else {
             console.log('[LOGIN] Failed - Wrong password');
-            res.status(401).render('login', { error: 'Password Salah!' });
+            return res.status(401).render('login', { error: 'Password Salah!' });
         }
     });
 
