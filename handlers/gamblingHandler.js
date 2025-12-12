@@ -222,16 +222,48 @@ module.exports = {
                 result = choice.startsWith('h') ? 'tail' : 'head';
             }
 
+            // Animation
+            const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+            const createFlipEmbed = (currentFace, status) => {
+                const emoji = currentFace === 'head' ? '🪙' : '🪙';
+                const faceText = currentFace === 'head' ? '**HEAD**' : '**TAIL**';
+                return new EmbedBuilder()
+                    .setTitle('🪙 COINFLIP 🪙')
+                    .setDescription(`${emoji} ${faceText}`)
+                    .setColor(currentFace === 'head' ? '#FFD700' : '#C0C0C0')
+                    .addFields({ name: 'Status', value: status });
+            };
+
+            // Initial flip message
+            const msg = await message.reply({ embeds: [createFlipEmbed('head', '🌀 Flipping...')] });
+
+            // Flip animation (alternate 4 times)
+            const faces = ['tail', 'head', 'tail', 'head'];
+            for (const face of faces) {
+                await delay(300);
+                await msg.edit({ embeds: [createFlipEmbed(face, '🌀 Flipping...')] });
+            }
+
+            // Final result
+            await delay(500);
+
             if (isWin) {
                 const winAmount = amount * 2;
                 db.updateBalance(userId, winAmount);
                 missionHandler.trackMission(userId, 'win_coinflip');
                 const luckMsg = luck > 0 ? ` (🍀 Luck +${luck}%)` : '';
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu MENANG Rp ${formatMoney(winAmount)}! 🎉${luckMsg}\n*${walletType}*`);
+                await msg.edit({
+                    embeds: [createFlipEmbed(result, `✅ **MENANG!** +Rp ${formatMoney(winAmount)}${luckMsg}\n*${walletType}*`)],
+                    content: null
+                });
             } else {
                 // Already deducted
-                return message.reply(`🪙 **${result.toUpperCase()}!** Kamu KALAH Rp ${formatMoney(amount)}. Sad. 📉\n*${walletType}*`);
+                await msg.edit({
+                    embeds: [createFlipEmbed(result, `❌ **KALAH!** -Rp ${formatMoney(amount)}\n*${walletType}*`)],
+                    content: null
+                });
             }
+            return;
         }
 
         // !slots <amount>

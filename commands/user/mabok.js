@@ -59,7 +59,8 @@ module.exports = {
 
         // 3. PROSES KONSUMSI
         // Kita panggil processConsume dari kantinHandler
-        // Parameter: interaction, user, itemKey, menu, isWarungItem, currentStock
-        await kantinHandler.processConsume(interaction, user, itemKey, menu, true, item.jumlah);
+        // Parameter: interaction, user, itemKey, menu, isWarungItem, currentStock, friendsIds
+        const friendsIds = [teman1.id, teman2.id];
+        await kantinHandler.processConsume(interaction, user, itemKey, menu, true, item.jumlah, friendsIds);
     }
 };

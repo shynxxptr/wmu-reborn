@@ -166,6 +166,8 @@ module.exports = {
             isWarungItem = true;
         }
 
+        console.log(`[EAT DEBUG] User: ${user.username}, Item: ${itemKey}, IsWarung: ${isWarungItem}, Type: ${menu?.type}`);
+
         if (!menu) return interaction.reply({ content: '❌ Barang tidak valid.', flags: [MessageFlags.Ephemeral] });
 
         // 1. CEK INVENTARIS
