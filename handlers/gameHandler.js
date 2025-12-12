@@ -98,6 +98,28 @@ module.exports = {
       }
 
       if (customId.startsWith("palak_accept")) {
+        // Validasi balance sebelum mulai game
+        const challengerBalance = db.getBalance(state.challenger);
+        const targetBalance = db.getBalance(state.target);
+        
+        if (challengerBalance < state.amount) {
+          activeDuels.delete(duelKey);
+          return interaction.update({
+            content: `❌ **Duel dibatalkan!** <@${state.challenger}> tidak punya cukup uang (Rp ${state.amount.toLocaleString('id-ID')}).`,
+            embeds: [],
+            components: [],
+          });
+        }
+        
+        if (targetBalance < state.amount) {
+          activeDuels.delete(duelKey);
+          return interaction.update({
+            content: `❌ **Duel dibatalkan!** <@${state.target}> tidak punya cukup uang (Rp ${state.amount.toLocaleString('id-ID')}).`,
+            embeds: [],
+            components: [],
+          });
+        }
+        
         // Mulai Game
         await this.startRound(interaction, state, duelKey);
       }
@@ -235,7 +257,10 @@ module.exports = {
     const channel =
       interaction.channel ||
       interaction.client.channels.cache.get(state.channelId);
-    if (state.scores[cId] >= 2 || state.scores[tId] >= 2 || state.round >= 3) {
+    // Game ends if: someone wins 2 rounds OR all 3 rounds completed
+    // state.round starts at 1, increments after each round
+    // After round 3 completes, round becomes 4, so check > 3
+    if (state.scores[cId] >= 2 || state.scores[tId] >= 2 || state.round > 3) {
       await this.endGame(channel, state, duelKey);
     } else {
       state.round++;
@@ -254,40 +279,68 @@ module.exports = {
     const scoreT = state.scores[tId];
     const amount = state.amount;
 
+    // Validasi balance sebelum transfer
+    const challengerBalance = db.getBalance(cId);
+    const targetBalance = db.getBalance(tId);
+
     let finalEmbed = new EmbedBuilder().setTitle("🏆 DUEL SELESAI");
 
     if (scoreC > scoreT) {
       // Challenger Wins
-      db.prepare(
-        "UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?"
-      ).run(amount, cId);
-      db.prepare(
-        "UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?"
-      ).run(amount, tId);
-      finalEmbed
-        .setDescription(
-          `🎉 **<@${cId}> MENANG!**\nSkor: ${scoreC} - ${scoreT}\n\n💰 **Rp ${amount.toLocaleString(
-            "id-ID"
-          )}** berhasil dipalak dari <@${tId}>!`
-        )
-        .setColor("#00FF00");
+      if (targetBalance < amount) {
+        // Target tidak punya cukup uang, kembalikan uang challenger
+        db.prepare(
+          "UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?"
+        ).run(amount, cId);
+        finalEmbed
+          .setDescription(
+            `🎉 **<@${cId}> MENANG!**\nSkor: ${scoreC} - ${scoreT}\n\n⚠️ **<@${tId}> tidak punya cukup uang!** Uang dikembalikan ke <@${cId}>.`
+          )
+          .setColor("#FFFF00");
+      } else {
+        db.prepare(
+          "UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?"
+        ).run(amount, cId);
+        db.prepare(
+          "UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?"
+        ).run(amount, tId);
+        finalEmbed
+          .setDescription(
+            `🎉 **<@${cId}> MENANG!**\nSkor: ${scoreC} - ${scoreT}\n\n💰 **Rp ${amount.toLocaleString(
+              "id-ID"
+            )}** berhasil dipalak dari <@${tId}>!`
+          )
+          .setColor("#00FF00");
+      }
     } else if (scoreT > scoreC) {
       // Target Wins (Counter-Palak)
-      db.prepare(
-        "UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?"
-      ).run(amount, tId);
-      db.prepare(
-        "UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?"
-      ).run(amount, cId);
-      finalEmbed
-        .setDescription(
-          `🛡️ **<@${tId}> MENANG!** (Gagal Dipalak)\nSkor: ${scoreT} - ${scoreC}\n\n💰 Malah **<@${cId}>** yang rugi **Rp ${amount.toLocaleString(
-            "id-ID"
-          )}**!`
-        )
-        .setColor("#0000FF");
+      if (challengerBalance < amount) {
+        // Challenger tidak punya cukup uang, kembalikan uang target
+        db.prepare(
+          "UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?"
+        ).run(amount, tId);
+        finalEmbed
+          .setDescription(
+            `🛡️ **<@${tId}> MENANG!** (Gagal Dipalak)\nSkor: ${scoreT} - ${scoreC}\n\n⚠️ **<@${cId}> tidak punya cukup uang!** Uang dikembalikan ke <@${tId}>.`
+          )
+          .setColor("#FFFF00");
+      } else {
+        db.prepare(
+          "UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?"
+        ).run(amount, tId);
+        db.prepare(
+          "UPDATE user_economy SET uang_jajan = uang_jajan - ? WHERE user_id = ?"
+        ).run(amount, cId);
+        finalEmbed
+          .setDescription(
+            `🛡️ **<@${tId}> MENANG!** (Gagal Dipalak)\nSkor: ${scoreT} - ${scoreC}\n\n💰 Malah **<@${cId}>** yang rugi **Rp ${amount.toLocaleString(
+              "id-ID"
+            )}**!`
+          )
+          .setColor("#0000FF");
+      }
     } else {
-      // Draw
+      // Draw - Tidak ada uang yang berpindah (karena tidak ada deduct di awal)
       finalEmbed
         .setDescription(
           `🤝 **SERI!**\nSkor: ${scoreC} - ${scoreT}\n\nTidak ada uang yang berpindah tangan.`

@@ -167,7 +167,7 @@ module.exports = {
 
             // J. SLOT HANDLER (Stop Button)
             if (id.startsWith('slot_')) {
-                await gamblingHandler.handleSlotInteraction(interaction);
+                await gamblingHandler.handleSlotButton(interaction);
                 return;
             }
 

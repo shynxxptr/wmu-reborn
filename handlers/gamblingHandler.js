@@ -29,8 +29,8 @@ module.exports = {
             const contribution = Math.floor(betAmount * 0.02);
             if (contribution > 0) db.addJackpot(contribution);
 
-            // 0.0001% Chance (1 in 1,000,000) - Reduced from 1 in 100,000
-            if (Math.random() < 0.0000001) {
+            // 0.0001% Chance (1 in 1,000,000)
+            if (Math.random() < 0.000001) {
                 const jackpotPool = db.getJackpot();
                 if (jackpotPool > 0) {
                     // Jackpot always goes to MAIN WALLET (Bonus)
@@ -173,10 +173,11 @@ module.exports = {
             let amount = 0;
             const currentBalance = db.getBalance(userId);
             const lowerAmount = rawAmount.toLowerCase();
+            const maxBet = db.getUserMaxBet(userId);
 
             if (lowerAmount === 'all' || lowerAmount === 'allin') {
-                amount = Math.min(currentBalance, 10000000);
-                if (amount > 10000000) amount = 10000000; // Safety Net
+                amount = Math.min(currentBalance, maxBet);
+                if (amount > maxBet) amount = maxBet; // Safety Net
             } else if (lowerAmount.endsWith('k')) {
                 amount = parseFloat(lowerAmount) * 1000;
             } else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) {
@@ -186,7 +187,7 @@ module.exports = {
             }
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+            if (amount > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
 
             // Cooldown Check (5 Seconds)
             const cfCooldown = 5000;
@@ -225,8 +226,8 @@ module.exports = {
             // Animation
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const createFlipEmbed = (currentFace, status) => {
-                const emoji = currentFace === 'head' ? '🪙' : '🪙';
-                const faceText = currentFace === 'head' ? '**HEAD**' : '**TAIL**';
+                const emoji = currentFace === 'head' ? '🪙' : '🪙'; // Same emoji but different display
+                const faceText = currentFace === 'head' ? '**HEAD** ⬆️' : '**TAIL** ⬇️';
                 return new EmbedBuilder()
                     .setTitle('🪙 COINFLIP 🪙')
                     .setDescription(`${emoji} ${faceText}`)
@@ -274,10 +275,11 @@ module.exports = {
             let amount = 0;
             const currentBalance = db.getBalance(userId);
             const lowerAmount = rawAmount.toLowerCase();
+            const maxBet = db.getUserMaxBet(userId);
 
             if (lowerAmount === 'all' || lowerAmount === 'allin') {
-                amount = Math.min(currentBalance, 10000000);
-                if (amount > 10000000) amount = 10000000; // Safety Net
+                amount = Math.min(currentBalance, maxBet);
+                if (amount > maxBet) amount = maxBet; // Safety Net
             } else if (lowerAmount.endsWith('k')) {
                 amount = parseFloat(lowerAmount) * 1000;
             } else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) {
@@ -287,7 +289,7 @@ module.exports = {
             }
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+            if (amount > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
 
             // Cooldown Check (10 Seconds)
             const slotCooldown = 10000;
@@ -382,10 +384,11 @@ module.exports = {
             let amount = 0;
             const currentBalance = db.getBalance(userId);
             const lowerAmount = rawAmount.toLowerCase();
+            const maxBet = db.getUserMaxBet(userId);
 
             if (lowerAmount === 'all' || lowerAmount === 'allin') {
-                amount = Math.min(currentBalance, 10000000);
-                if (amount > 10000000) amount = 10000000; // Safety Net
+                amount = Math.min(currentBalance, maxBet);
+                if (amount > maxBet) amount = maxBet; // Safety Net
             } else if (lowerAmount.endsWith('k')) {
                 amount = parseFloat(lowerAmount) * 1000;
             } else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) {
@@ -395,7 +398,7 @@ module.exports = {
             }
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+            if (amount > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
 
             // Cooldown Check (20 Seconds)
             const mathCooldownTime = 20000;
@@ -418,19 +421,65 @@ module.exports = {
             let multiplier = 1.2; // 20% Profit
             let timeLimit = 15000; // 15 seconds
 
-            if (amount >= 20000000) {
+            // Max bet is 10M, so adjust thresholds accordingly
+            if (amount >= 5000000) { // 5M or more
                 difficulty = 'extreme';
                 multiplier = 3.0; // 200% Profit
                 timeLimit = 5000; // 5 seconds
-            } else if (amount >= 10000000) {
+            } else if (amount >= 2000000) { // 2M - 4.99M
                 difficulty = 'hard';
                 multiplier = 2.0; // 100% Profit
                 timeLimit = 7000; // 7 seconds
-            } else if (amount >= 1000000) {
+            } else if (amount >= 500000) { // 500k - 1.99M
                 difficulty = 'medium';
                 multiplier = 1.5; // 50% Profit
                 timeLimit = 10000; // 10 seconds
             }
+
+            // Safe Math Parser (replaces eval() for security)
+            const safeCalculate = (expression) => {
+                // Remove parentheses and calculate recursively
+                const calculateExpression = (expr) => {
+                    // Handle parentheses first
+                    while (expr.includes('(')) {
+                        const start = expr.lastIndexOf('(');
+                        const end = expr.indexOf(')', start);
+                        if (end === -1) break;
+                        const inner = expr.substring(start + 1, end);
+                        const innerResult = calculateExpression(inner);
+                        expr = expr.substring(0, start) + innerResult + expr.substring(end + 1);
+                    }
+
+                    // Split by operators (preserve order: *, /, +, -)
+                    const tokens = expr.match(/(\d+\.?\d*|[+\-*/])/g) || [];
+                    if (tokens.length === 0) return 0;
+
+                    // Convert to numbers and operators
+                    const stack = [];
+                    let i = 0;
+                    while (i < tokens.length) {
+                        const token = tokens[i];
+                        if (token === '*' || token === '/') {
+                            const prev = stack.pop();
+                            const next = parseFloat(tokens[++i]);
+                            if (token === '*') stack.push(prev * next);
+                            else stack.push(prev / next);
+                        } else if (token !== '+' && token !== '-') {
+                            stack.push(parseFloat(token));
+                        } else if (token === '-') {
+                            // Handle negative numbers
+                            const next = parseFloat(tokens[++i]);
+                            stack.push(-next);
+                        }
+                        i++;
+                    }
+
+                    // Sum all values
+                    return stack.reduce((sum, val) => sum + val, 0);
+                };
+
+                return calculateExpression(expression.replace(/\s/g, ''));
+            };
 
             // Generate Question
             const generateQuestion = (diff) => {
@@ -446,7 +495,8 @@ module.exports = {
                             const n1 = rand(1, 50);
                             const n2 = rand(1, 50);
                             q = `${n1} ${o} ${n2}`;
-                            a = eval(q);
+                            if (o === '+') a = n1 + n2;
+                            else a = n1 - n2;
                         }
                         break;
                     case 'medium': // Mul/Div or 3 terms Add/Sub
@@ -472,7 +522,9 @@ module.exports = {
                                 const o1 = ops[Math.floor(Math.random() * 2)];
                                 const o2 = ops[Math.floor(Math.random() * 2)];
                                 q = `${n1} ${o1} ${n2} ${o2} ${n3}`;
-                                a = eval(q);
+                                // Calculate safely
+                                let temp = o1 === '+' ? n1 + n2 : n1 - n2;
+                                a = o2 === '+' ? temp + n3 : temp - n3;
                             }
                         }
                         break;
@@ -484,7 +536,12 @@ module.exports = {
                             const o1 = ops[Math.floor(Math.random() * 3)]; // +, -, *
                             const o2 = ops[Math.floor(Math.random() * 2)]; // +, -
                             q = `${n1} ${o1} ${n2} ${o2} ${n3}`;
-                            a = eval(q);
+                            // Calculate safely
+                            let temp;
+                            if (o1 === '+') temp = n1 + n2;
+                            else if (o1 === '-') temp = n1 - n2;
+                            else temp = n1 * n2;
+                            a = o2 === '+' ? temp + n3 : temp - n3;
                         }
                         break;
                     case 'extreme': // 5 terms, parentheses, large numbers
@@ -508,7 +565,8 @@ module.exports = {
                                 // A o (B o C) o D o E
                                 q = `${n1} ${o1} (${n2} ${o2} ${n3}) ${o3} ${n4} ${o4} ${n5}`;
                             }
-                            a = eval(q);
+                            // Use safe parser for complex expressions
+                            a = safeCalculate(q);
                         }
                         break;
                 }
@@ -566,16 +624,17 @@ module.exports = {
             let amount = 0;
             const currentBalance = db.getBalance(userId);
             const lowerAmount = rawAmount.toLowerCase();
+            const maxBet = db.getUserMaxBet(userId);
 
             if (lowerAmount === 'all' || lowerAmount === 'allin') {
-                amount = Math.min(currentBalance, 10000000);
-                if (amount > 10000000) amount = 10000000; // Safety Net
+                amount = Math.min(currentBalance, maxBet);
+                if (amount > maxBet) amount = maxBet; // Safety Net
             } else if (lowerAmount.endsWith('k')) amount = parseFloat(lowerAmount) * 1000;
             else if (lowerAmount.endsWith('m') || lowerAmount.endsWith('jt')) amount = parseFloat(lowerAmount) * 1000000;
             else amount = parseInt(rawAmount);
 
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-            if (amount > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+            if (amount > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
             if (isBuy && amount > 100000) return message.reply('❌ Maksimal bet untuk fitur Buy adalah 100 Ribu (Total 10 Juta)!');
 
             argsIdx++;
@@ -600,11 +659,16 @@ module.exports = {
             if (requestedSpins < 1) requestedSpins = 1;
 
             const costPerSpin = isBuy ? amount * 100 : amount;
+            const totalCost = costPerSpin * requestedSpins;
             missionHandler.trackMission(userId, 'play_slots', requestedSpins);
+            missionHandler.trackMission(userId, 'play_bigslot', requestedSpins);
 
-            // Initial Check
+            // Initial Check - Check total cost for all spins
             if (currentBalance < costPerSpin) {
                 return message.reply(`💸 **Uang gak cukup!** Butuh Rp ${formatMoney(costPerSpin)} per spin.`);
+            }
+            if (currentBalance < totalCost) {
+                return message.reply(`💸 **Uang gak cukup!** Butuh Rp ${formatMoney(totalCost)} untuk ${requestedSpins} spin (Rp ${formatMoney(costPerSpin)} per spin).`);
             }
 
             // Symbols & Helpers
@@ -705,7 +769,8 @@ module.exports = {
                     .setDescription(fullGrid)
                     .addFields(
                         { name: '💰 Bet', value: `Rp ${formatMoney(bet)}`, inline: true },
-                        { name: '📊 Status', value: status, inline: true }
+                        { name: '📊 Status', value: status, inline: true },
+                        { name: '🚨 Max Win', value: `5000x Bet (Rp ${formatMoney(bet * 5000)})`, inline: true }
                     );
 
                 if (resultText) {
@@ -949,7 +1014,7 @@ module.exports = {
                 );
 
             if (isMaxWinReached) {
-                summaryEmbed.setDescription(`🚨 **MAX WIN REACHED!** (5000x Bet)\nSesi dihentikan otomatis.`);
+                summaryEmbed.setDescription(`🚨 **MAX WIN REACHED!** (5000x Bet = Rp ${formatMoney(amount * 5000)})\nSesi dihentikan otomatis untuk mencegah exploit.`);
             }
 
             await message.channel.send({ embeds: [summaryEmbed] });

@@ -18,6 +18,10 @@ const calculateNextMultiplier = (currentMult, safeRemaining, totalRemaining) => 
     // 20 spots, 5 bombs -> 15 safe.
     // 1st click: 20/15 = 1.33x
     // We apply a small house edge (e.g., 5%)
+    // Edge case protection: prevent division by zero or invalid values
+    if (safeRemaining <= 0 || totalRemaining <= 0 || safeRemaining > totalRemaining) {
+        return currentMult; // Return current multiplier if invalid
+    }
     const rawOdds = totalRemaining / safeRemaining;
     const houseEdge = 0.95;
     return currentMult * rawOdds * houseEdge;
@@ -37,16 +41,18 @@ module.exports = {
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
+        const maxBet = db.getUserMaxBet(userId);
+        
         if (lower === 'all' || lower === 'allin') {
-            bet = Math.min(balance, 10000000);
-            if (bet > 10000000) bet = 10000000; // Safety Net
+            bet = Math.min(balance, maxBet);
+            if (bet > maxBet) bet = maxBet; // Safety Net
         }
         else if (lower.endsWith('k')) bet = parseFloat(lower) * 1000;
         else if (lower.endsWith('m') || lower.endsWith('jt')) bet = parseFloat(lower) * 1000000;
         else bet = parseInt(lower);
 
         if (isNaN(bet) || bet <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-        if (bet > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+        if (bet > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
         if (balance < bet) return message.reply('💸 **Uang gak cukup!**');
 
         // Deduct Bet
@@ -124,6 +130,9 @@ module.exports = {
         if (interaction.customId === 'mine_cashout') {
             const winAmount = Math.floor(game.bet * game.multiplier);
             db.updateBalance(game.userId, winAmount);
+            
+            // Track Mission - Win Minesweeper
+            missionHandler.trackMission(game.userId, 'win_mines');
 
             const embed = new EmbedBuilder()
                 .setTitle('💰 CASHOUT SUKSES!')
@@ -166,8 +175,13 @@ module.exports = {
             const safeRemainingBefore = safeTotal - (safeRevealed - 1);
             const totalRemainingBefore = totalSpots - (safeRevealed - 1);
 
-            // Update Multiplier
-            game.multiplier = calculateNextMultiplier(game.multiplier, safeRemainingBefore, totalRemainingBefore);
+            // Update Multiplier with edge case protection
+            if (safeRemainingBefore > 0 && totalRemainingBefore > 0 && safeRemainingBefore <= totalRemainingBefore) {
+                game.multiplier = calculateNextMultiplier(game.multiplier, safeRemainingBefore, totalRemainingBefore);
+            } else {
+                // Edge case: all safe spots revealed or invalid state, cap multiplier
+                game.multiplier = Math.min(game.multiplier * 1.1, game.bet * 1000); // Cap at reasonable max
+            }
 
             const embed = new EmbedBuilder()
                 .setTitle('💣 TEBAK BOM (Minesweeper)')
@@ -201,11 +215,18 @@ module.exports = {
             rows.push(row);
         }
 
-        // Cashout Button
+        // Cashout Button (truncate label if too long)
+        const cashoutAmount = Math.floor(game.bet * game.multiplier);
+        const cashoutLabel = cashoutAmount >= 1000000 
+            ? `💰 CASHOUT (${(cashoutAmount / 1000000).toFixed(1)}M)`
+            : cashoutAmount >= 1000
+            ? `💰 CASHOUT (${(cashoutAmount / 1000).toFixed(0)}k)`
+            : `💰 CASHOUT (${cashoutAmount})`;
+        
         const controlRow = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
                 .setCustomId('mine_cashout')
-                .setLabel(`💰 CASHOUT (Rp ${Math.floor(game.bet * game.multiplier).toLocaleString('id-ID')})`)
+                .setLabel(cashoutLabel.length > 80 ? `💰 CASHOUT` : cashoutLabel) // Discord limit 80 chars
                 .setStyle(ButtonStyle.Primary)
         );
 

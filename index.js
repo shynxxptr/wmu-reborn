@@ -62,9 +62,10 @@ try {
 
 // --- INITIALIZE AUTO-CLEANUP SCHEDULER ---
 try {
-    const { initCleanupScheduler, initLeaderboardScheduler } = require('./utils/scheduler.js');
+    const { initCleanupScheduler, initLeaderboardScheduler, initBankingScheduler } = require('./utils/scheduler.js');
     initCleanupScheduler();
     initLeaderboardScheduler(client);
+    initBankingScheduler(); // Banking: Interest & Loan Processing
 } catch (err) {
     console.error('❌ Gagal menjalankan Scheduler:', err);
 }

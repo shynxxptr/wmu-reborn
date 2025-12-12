@@ -114,6 +114,148 @@ db.updateWealthStatus = (userId, levelCleared, firstBreachTime) => {
         .run(levelCleared, firstBreachTime, userId);
 };
 
+// 9. User Max Bet (Custom Max Bet Per User)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_max_bet (
+        user_id TEXT PRIMARY KEY,
+        max_bet_amount INTEGER DEFAULT 10000000,
+        is_custom INTEGER DEFAULT 0,
+        set_by TEXT,
+        set_at INTEGER
+    )
+`);
+
+// --- MAX BET HELPERS ---
+db.getUserMaxBet = (userId) => {
+    try {
+        const row = db.prepare('SELECT * FROM user_max_bet WHERE user_id = ?').get(userId);
+        if (row && row.is_custom === 1) {
+            return row.max_bet_amount;
+        }
+        return 10000000; // Global default
+    } catch (e) { return 10000000; }
+};
+
+db.setUserMaxBet = (userId, amount, setBy) => {
+    try {
+        db.prepare(`
+            INSERT INTO user_max_bet (user_id, max_bet_amount, is_custom, set_by, set_at)
+            VALUES (?, ?, 1, ?, ?)
+            ON CONFLICT(user_id) DO UPDATE SET 
+                max_bet_amount = ?,
+                is_custom = 1,
+                set_by = ?,
+                set_at = ?
+        `).run(userId, amount, setBy, Date.now(), amount, setBy, Date.now());
+        return true;
+    } catch (e) { 
+        console.error('Error setting user max bet:', e);
+        return false; 
+    }
+};
+
+db.resetUserMaxBet = (userId) => {
+    try {
+        db.prepare('DELETE FROM user_max_bet WHERE user_id = ?').run(userId);
+        return true;
+    } catch (e) { 
+        console.error('Error resetting user max bet:', e);
+        return false; 
+    }
+};
+
+db.getUsersWithCustomMaxBet = () => {
+    try {
+        return db.prepare('SELECT * FROM user_max_bet WHERE is_custom = 1 ORDER BY set_at DESC').all();
+    } catch (e) { 
+        console.error('Error getting users with custom max bet:', e);
+        return []; 
+    }
+};
+
+// --- WEALTH LIMITER MANAGEMENT HELPERS ---
+db.getUsersWithActiveLimiter = () => {
+    try {
+        // Get all users with wealth limits and their balances
+        const allLimits = db.prepare(`
+            SELECT w.*, e.uang_jajan as balance
+            FROM user_wealth_limits w
+            LEFT JOIN user_economy e ON w.user_id = e.user_id
+            WHERE w.first_breach_time IS NOT NULL
+        `).all();
+        
+        // Filter to only active limiters (balance >= threshold for their level)
+        const levels = [
+            { limit: 100000000, duration: 6 * 3600 * 1000 },   // 100 Juta - 6 Jam
+            { limit: 500000000, duration: 12 * 3600 * 1000 },  // 500 Juta - 12 Jam
+            { limit: 1000000000, duration: 24 * 3600 * 1000 }, // 1 Milyar - 24 Jam
+            { limit: 10000000000, duration: 48 * 3600 * 1000 },// 10 Milyar - 2 Hari
+            { limit: 50000000000, duration: 72 * 3600 * 1000 },// 50 Milyar - 3 Hari
+            { limit: 100000000000, duration: 120 * 3600 * 1000 }// 100 Milyar - 5 Hari
+        ];
+        
+        const active = [];
+        for (const w of allLimits) {
+            const balance = w.balance || 0;
+            const levelIdx = w.level_cleared;
+            
+            if (levelIdx < levels.length) {
+                const threshold = levels[levelIdx].limit;
+                if (balance >= threshold * 0.8) { // Include mercy zone
+                    active.push({
+                        ...w,
+                        threshold,
+                        duration: levels[levelIdx].duration
+                    });
+                }
+            }
+        }
+        
+        return active;
+    } catch (e) {
+        console.error('Error getting users with active limiter:', e);
+        return [];
+    }
+};
+
+db.resetUserLimiter = (userId, newLevel = null) => {
+    try {
+        if (newLevel === null) {
+            // Full reset: level = 0, timer = null
+            db.prepare('UPDATE user_wealth_limits SET level_cleared = 0, first_breach_time = NULL WHERE user_id = ?').run(userId);
+        } else {
+            // Set ke level tertentu
+            db.prepare('UPDATE user_wealth_limits SET level_cleared = ?, first_breach_time = NULL WHERE user_id = ?').run(newLevel, userId);
+        }
+        return true;
+    } catch (e) {
+        console.error('Error resetting user limiter:', e);
+        return false;
+    }
+};
+
+db.setUserLimiterLevel = (userId, level) => {
+    try {
+        // Ensure user exists in table
+        db.getWealthStatus(userId);
+        db.prepare('UPDATE user_wealth_limits SET level_cleared = ?, first_breach_time = NULL WHERE user_id = ?').run(level, userId);
+        return true;
+    } catch (e) {
+        console.error('Error setting user limiter level:', e);
+        return false;
+    }
+};
+
+db.clearUserLimiterTimer = (userId) => {
+    try {
+        db.prepare('UPDATE user_wealth_limits SET first_breach_time = NULL WHERE user_id = ?').run(userId);
+        return true;
+    } catch (e) {
+        console.error('Error clearing user limiter timer:', e);
+        return false;
+    }
+};
+
 // 7. Audit Logs (Moderation)
 db.exec(`
     CREATE TABLE IF NOT EXISTS audit_logs (
@@ -126,6 +268,39 @@ db.exec(`
         timestamp INTEGER NOT NULL
     )
 `);
+
+db.addAuditLog = (actionType, userId, userTag, targetId, details) => {
+    try {
+        db.prepare(`
+            INSERT INTO audit_logs (action_type, user_id, user_tag, target_id, details, timestamp)
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(actionType, userId, userTag || null, targetId || null, details || null, Date.now());
+        return true;
+    } catch (e) {
+        console.error('Error adding audit log:', e);
+        return false;
+    }
+};
+
+db.getAuditLogs = (limit = 100, actionType = null) => {
+    try {
+        if (actionType) {
+            return db.prepare(`
+                SELECT * FROM audit_logs 
+                WHERE action_type = ?
+                ORDER BY timestamp DESC 
+                LIMIT ?
+            `).all(actionType, limit);
+        }
+        return db.prepare(`
+            SELECT * FROM audit_logs 
+            ORDER BY timestamp DESC 
+            LIMIT ?
+        `).all(limit);
+    } catch (e) {
+        return [];
+    }
+};
 
 // 8. User Economy (Uang Jajan)
 db.exec(`
@@ -541,6 +716,8 @@ try {
 db.addAdmin = (userId, addedBy) => {
     try {
         db.prepare('INSERT OR IGNORE INTO bot_admins (user_id, added_by, added_at) VALUES (?, ?, ?)').run(userId, addedBy, Date.now());
+        // Admin tetap punya dompet (fake dompet untuk bermain)
+        // Tapi tidak bisa menerima transfer dari user lain
         return true;
     } catch (e) { return false; }
 };
@@ -571,6 +748,7 @@ db.getTopBalances = (limit = 10) => {
             SELECT user_id, uang_jajan 
             FROM user_economy 
             WHERE user_id NOT IN (SELECT user_id FROM leaderboard_blacklist)
+            AND user_id NOT IN (SELECT user_id FROM bot_admins)
             ORDER BY uang_jajan DESC 
             LIMIT ?
         `).all(limit);
@@ -855,6 +1033,120 @@ db.getEskul = (userId) => {
         const row = db.prepare('SELECT * FROM user_eskul WHERE user_id = ?').get(userId);
         return row || null;
     } catch (e) { return null; }
+};
+
+// --- BANKING SYSTEM (Money Sink Phase 1) ---
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_banking (
+        user_id TEXT PRIMARY KEY,
+        bank_balance INTEGER DEFAULT 0,
+        loan_amount INTEGER DEFAULT 0,
+        loan_interest_rate REAL DEFAULT 0.02,
+        loan_start_time INTEGER DEFAULT 0,
+        loan_due_time INTEGER DEFAULT 0,
+        last_maintenance_time INTEGER DEFAULT 0
+    )
+`);
+
+// Banking Functions
+db.getBankBalance = (userId) => {
+    try {
+        const row = db.prepare('SELECT bank_balance FROM user_banking WHERE user_id = ?').get(userId);
+        return row ? row.bank_balance : 0;
+    } catch (e) { return 0; }
+};
+
+db.depositToBank = (userId, amount) => {
+    try {
+        const user = db.prepare('SELECT * FROM user_banking WHERE user_id = ?').get(userId);
+        if (!user) {
+            db.prepare('INSERT INTO user_banking (user_id, bank_balance) VALUES (?, ?)').run(userId, amount);
+        } else {
+            db.prepare('UPDATE user_banking SET bank_balance = bank_balance + ? WHERE user_id = ?').run(amount, userId);
+        }
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+};
+
+db.withdrawFromBank = (userId, amount) => {
+    try {
+        const user = db.prepare('SELECT * FROM user_banking WHERE user_id = ?').get(userId);
+        if (!user || user.bank_balance < amount) {
+            return { success: false, error: 'Saldo bank tidak cukup' };
+        }
+        db.prepare('UPDATE user_banking SET bank_balance = bank_balance - ? WHERE user_id = ?').run(amount, userId);
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+};
+
+db.getLoan = (userId) => {
+    try {
+        const row = db.prepare('SELECT * FROM user_banking WHERE user_id = ?').get(userId);
+        return row ? {
+            loan_amount: row.loan_amount || 0,
+            loan_start_time: row.loan_start_time || 0,
+            loan_due_time: row.loan_due_time || 0,
+            interest_rate: row.loan_interest_rate || 0.02
+        } : null;
+    } catch (e) { return null; }
+};
+
+db.createLoan = (userId, amount, days = 7) => {
+    try {
+        const now = Date.now();
+        const dueTime = now + (days * 24 * 60 * 60 * 1000);
+        
+        const user = db.prepare('SELECT * FROM user_banking WHERE user_id = ?').get(userId);
+        if (!user) {
+            db.prepare('INSERT INTO user_banking (user_id, loan_amount, loan_start_time, loan_due_time) VALUES (?, ?, ?, ?)').run(userId, amount, now, dueTime);
+        } else {
+            if (user.loan_amount > 0) {
+                return { success: false, error: 'Kamu masih punya pinjaman aktif' };
+            }
+            db.prepare('UPDATE user_banking SET loan_amount = ?, loan_start_time = ?, loan_due_time = ? WHERE user_id = ?').run(amount, now, dueTime, userId);
+        }
+        return { success: true };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
+};
+
+db.payLoan = (userId, amount) => {
+    try {
+        const user = db.prepare('SELECT * FROM user_banking WHERE user_id = ?').get(userId);
+        if (!user || user.loan_amount === 0) {
+            return { success: false, error: 'Tidak ada pinjaman aktif' };
+        }
+        
+        // Interest already calculated in handler (compound)
+        // Just verify amount is sufficient
+        const daysElapsed = Math.max(1, Math.floor((Date.now() - user.loan_start_time) / (24 * 60 * 60 * 1000)));
+        let interest = 0;
+        let remaining = user.loan_amount;
+        
+        // Compound interest calculation
+        for (let day = 0; day < daysElapsed; day++) {
+            const dailyInterest = Math.floor(remaining * user.loan_interest_rate);
+            interest += dailyInterest;
+            remaining += dailyInterest;
+        }
+        
+        const totalOwed = user.loan_amount + interest;
+        
+        if (amount < totalOwed) {
+            return { success: false, error: `Jumlah tidak cukup. Total yang harus dibayar: Rp ${totalOwed.toLocaleString('id-ID')}` };
+        }
+        
+        // Pay loan
+        db.prepare('UPDATE user_banking SET loan_amount = 0, loan_start_time = 0, loan_due_time = 0 WHERE user_id = ?').run(userId);
+        return { success: true, interest: interest, daysElapsed: daysElapsed };
+    } catch (e) {
+        return { success: false, error: e.message };
+    }
 };
 
 module.exports = db;

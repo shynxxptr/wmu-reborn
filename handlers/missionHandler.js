@@ -8,7 +8,13 @@ const MISSION_TYPES = {
     win_coinflip: { label: 'Menang Coinflip', target: 3, reward: 75000 },
     play_math: { label: 'Main Math Game', target: 3, reward: 30000 },
     play_mines: { label: 'Main Minesweeper', target: 3, reward: 60000 },
-    play_crash: { label: 'Main Saham (Crash)', target: 3, reward: 40000 }
+    play_crash: { label: 'Main Saham (Crash)', target: 3, reward: 40000 },
+    play_blackjack: { label: 'Main Blackjack', target: 3, reward: 45000 },
+    win_blackjack: { label: 'Menang Blackjack', target: 2, reward: 80000 },
+    do_work: { label: 'Kerja (Work Commands)', target: 10, reward: 35000 },
+    play_bigslot: { label: 'Main BigSlot', target: 2, reward: 70000 },
+    win_crash: { label: 'Menang Saham (Cashout)', target: 2, reward: 60000 },
+    win_mines: { label: 'Menang Minesweeper (Cashout)', target: 2, reward: 55000 }
 };
 
 module.exports = {

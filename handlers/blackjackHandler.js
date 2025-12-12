@@ -68,24 +68,28 @@ module.exports = {
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
-        console.log(`[BJ DEBUG] User: ${userId}, Balance: ${balance} (${typeof balance}), RawBet: ${rawBet}`);
 
+        const maxBet = db.getUserMaxBet(userId);
+        
         if (lower === 'all' || lower === 'allin') {
-            bet = Math.min(balance, 10000000);
-            if (bet > 10000000) bet = 10000000; // Safety Net
-            console.log(`[BJ DEBUG] All-in detected. Capped bet: ${bet}`);
+            bet = Math.min(balance, maxBet);
+            if (bet > maxBet) bet = maxBet; // Safety Net
         }
         else if (lower.endsWith('k')) bet = parseFloat(lower) * 1000;
         else if (lower.endsWith('m') || lower.endsWith('jt')) bet = parseFloat(lower) * 1000000;
         else bet = parseInt(lower);
 
         if (isNaN(bet) || bet <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-        if (bet > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+        if (bet > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
         if (balance < bet) return message.reply('💸 **Uang gak cukup!**');
 
         // Deduct Bet
         const updateRes = db.updateBalance(userId, -bet);
         const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
+        
+        // Track Mission
+        const missionHandler = require('./missionHandler.js');
+        missionHandler.trackMission(userId, 'play_blackjack');
 
         // Start Game
         const deck = createDeck();
@@ -100,6 +104,9 @@ module.exports = {
             // Payout 3:2
             const winAmount = Math.floor(bet * 2.5); // Return bet + 1.5x
             db.updateBalance(userId, winAmount);
+            
+            // Track Mission - Win Blackjack
+            missionHandler.trackMission(userId, 'win_blackjack');
 
             const embed = new EmbedBuilder()
                 .setTitle('🃏 BLACKJACK!')
@@ -114,10 +121,14 @@ module.exports = {
             .setDescription(`Bet: **Rp ${bet.toLocaleString('id-ID')}**\n\n**Dealer:** ${formatHand(dealerHand, true)} (?)\n**Player:** ${formatHand(playerHand)} (**${playerScore}**)`)
             .setColor('#00AAFF');
 
+        // Get balance after deduct (for double down check)
+        const balanceAfterDeduct = db.getBalance(userId);
+        const canDouble = balanceAfterDeduct >= bet; // Need at least bet amount (since bet already deducted)
+
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder().setCustomId('bj_hit').setLabel('Hit').setStyle(ButtonStyle.Primary),
             new ButtonBuilder().setCustomId('bj_stand').setLabel('Stand').setStyle(ButtonStyle.Secondary),
-            new ButtonBuilder().setCustomId('bj_double').setLabel('Double Down').setStyle(ButtonStyle.Success).setDisabled(balance < bet * 2) // Check if user has enough for double
+            new ButtonBuilder().setCustomId('bj_double').setLabel('Double Down').setStyle(ButtonStyle.Success).setDisabled(!canDouble) // Check if user has enough for double
         );
 
         const msg = await message.reply({ embeds: [embed], components: [row] });
@@ -130,7 +141,8 @@ module.exports = {
             deck,
             isDouble: false,
             messageId: msg.id,
-            walletType
+            walletType,
+            initialBalance: balance // Store initial balance for reference
         });
     },
 
@@ -172,13 +184,13 @@ module.exports = {
         } else if (action === 'stand') {
             await this.dealerTurn(interaction, game);
         } else if (action === 'double') {
-            // Check balance again
+            // Check balance again (bet already deducted, need another bet amount)
             const currentBal = db.getBalance(game.userId);
             if (currentBal < game.bet) {
                 return interaction.reply({ content: '💸 Uang gak cukup buat Double Down!', flags: [MessageFlags.Ephemeral] });
             }
 
-            // Deduct extra bet
+            // Deduct extra bet (double the original bet)
             db.updateBalance(game.userId, -game.bet);
             game.bet *= 2;
             game.isDouble = true;
@@ -237,6 +249,9 @@ module.exports = {
 
         if (winAmount > 0) {
             db.updateBalance(game.userId, winAmount);
+            // Track Mission - Win Blackjack
+            const missionHandler = require('./missionHandler.js');
+            missionHandler.trackMission(game.userId, 'win_blackjack');
         }
 
         const embed = new EmbedBuilder()

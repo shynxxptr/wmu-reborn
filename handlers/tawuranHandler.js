@@ -93,7 +93,7 @@ module.exports = {
                 const weapon = WEAPONS[Math.floor(Math.random() * WEAPONS.length)];
                 const dmg = weapon.power + Math.floor(Math.random() * 20);
 
-                session.enemyHealth -= dmg;
+                session.enemyHealth = Math.max(0, session.enemyHealth - dmg); // Prevent negative health
 
                 // Enemy Turn (Counter Attack)
                 const enemyDmg = Math.floor(Math.random() * 30);

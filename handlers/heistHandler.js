@@ -106,15 +106,27 @@ module.exports = {
             const collector = channel.createMessageCollector({ filter, time: 10000, max: 1 });
 
             collector.on('collect', async m => {
+                // Re-check session exists
+                const currentSession = activeHeists.get(channelId);
+                if (!currentSession) return;
+                
                 if (m.content.trim() === code) {
-                    await channel.send('✅ **BRANKAS TERBUKA!** Lanjut ke tahap berikutnya!');
-                    this.minigame2_WireCut(channel, channelId);
+                    // Re-check again before proceeding
+                    if (activeHeists.has(channelId)) {
+                        await channel.send('✅ **BRANKAS TERBUKA!** Lanjut ke tahap berikutnya!');
+                        this.minigame2_WireCut(channel, channelId);
+                    }
                 } else {
-                    this.failHeist(channel, 'Salah kode! Alarm bunyi 🚨', channelId);
+                    if (activeHeists.has(channelId)) {
+                        this.failHeist(channel, 'Salah kode! Alarm bunyi 🚨', channelId);
+                    }
                 }
             });
 
             collector.on('end', collected => {
+                // Re-check session exists
+                if (!activeHeists.has(channelId)) return;
+                
                 if (collected.size === 0) {
                     this.failHeist(channel, 'Kelamaan! Polisi keburu dateng 🚨', channelId);
                 }
@@ -155,19 +167,29 @@ module.exports = {
         const collector = msg.createMessageComponentCollector({ filter, time: 15000, max: 1 });
 
         collector.on('collect', async i => {
+            // Re-check session exists
+            if (!activeHeists.has(channelId)) return;
+            
             await i.deferUpdate();
             const choiceIndex = parseInt(i.customId.split('_')[1]);
 
             if (choiceIndex === safeWireIndex) {
-                await channel.send(`✅ **${i.user.username}** memotong kabel ${WIRES[choiceIndex]}... **AMAN!** Bom mati.`);
-                this.minigame3_Getaway(channel, channelId);
+                if (activeHeists.has(channelId)) {
+                    await channel.send(`✅ **${i.user.username}** memotong kabel ${WIRES[choiceIndex]}... **AMAN!** Bom mati.`);
+                    this.minigame3_Getaway(channel, channelId);
+                }
             } else {
-                await channel.send(`💥 **${i.user.username}** memotong kabel ${WIRES[choiceIndex]}... **DUARRRR!!!**`);
-                this.failHeist(channel, 'Bom meledak!', channelId);
+                if (activeHeists.has(channelId)) {
+                    await channel.send(`💥 **${i.user.username}** memotong kabel ${WIRES[choiceIndex]}... **DUARRRR!!!**`);
+                    this.failHeist(channel, 'Bom meledak!', channelId);
+                }
             }
         });
 
         collector.on('end', collected => {
+            // Re-check session exists
+            if (!activeHeists.has(channelId)) return;
+            
             if (collected.size === 0) {
                 this.failHeist(channel, 'Waktu habis! Bom meledak 💥', channelId);
             }

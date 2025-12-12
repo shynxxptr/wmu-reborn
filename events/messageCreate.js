@@ -356,6 +356,10 @@ module.exports = {
                 stress = MIN(100, stress + ?)
                 WHERE user_id = ?
             `).run(gaji, hungerRed, thirstRed, stressRed, userId);
+            
+            // Track Mission - Do Work
+            const missionHandler = require('../handlers/missionHandler.js');
+            missionHandler.trackMission(userId, 'do_work');
 
             return message.reply(`✅ **${text}**\nUpah: +Rp ${formatMoney(gaji)}${dropMsg}\nSisa Tenaga: ${maxJobs - (user.last_work_count + 1)}/${maxJobs} kali lagi jam ini.\n\n*Efek Kerja: Lapar +${hungerRed}, Haus +${thirstRed}, Stress +${stressRed}*`);
         }
@@ -476,14 +480,26 @@ module.exports = {
                         });
                     }
 
+                    // Cek jika target adalah admin - admin tidak bisa menerima transfer
+                    if (db.isAdmin(targetUser.id)) {
+                        return i.update({ 
+                            content: `❌ **Transfer Gagal!**\nAdmin tidak bisa menerima transfer dari user lain.`, 
+                            embeds: [], 
+                            components: [] 
+                        });
+                    }
+
                     // Execute Transfer
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan - ?, daily_transfer_total = daily_transfer_total + ? WHERE user_id = ?').run(amount, amount, userId);
 
+                    // Add amount to receiver
                     const receiver = db.prepare('SELECT * FROM user_economy WHERE user_id = ?').get(targetUser.id);
                     if (!receiver) db.prepare('INSERT INTO user_economy (user_id) VALUES (?)').run(targetUser.id);
                     db.prepare('UPDATE user_economy SET uang_jajan = uang_jajan + ? WHERE user_id = ?').run(amount, targetUser.id);
 
-                    await i.update({ content: `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${formatMoney(amount)} ke ${targetUser}.\n*Sisa limit hari ini: Rp ${formatMoney(LIMIT_HARIAN - (currentSender.daily_transfer_total + amount))}*`, embeds: [], components: [] });
+                    const finalMessage = `✅ **Transfer Berhasil!**\nKamu mengirim Rp ${formatMoney(amount)} ke ${targetUser}.\n*Sisa limit hari ini: Rp ${formatMoney(LIMIT_HARIAN - (currentSender.daily_transfer_total + amount))}*`;
+
+                    await i.update({ content: finalMessage, embeds: [], components: [] });
                 } else {
                     await i.update({ content: '❌ **Transfer Dibatalkan.**', embeds: [], components: [] });
                 }
@@ -652,6 +668,14 @@ module.exports = {
             const args = content.split(' ');
             const command = args[0];
             await coinHandler.handleCoin(message, command, args);
+        }
+
+        // --- 9.5 BANKING SYSTEM (Money Sink) ---
+        if (content.startsWith('!bank')) {
+            const bankingHandler = require('../handlers/bankingHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await bankingHandler.handleBanking(message, command, args);
         }
 
         // --- 9.5 BLACK MARKET ---

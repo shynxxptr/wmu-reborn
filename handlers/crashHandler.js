@@ -22,16 +22,18 @@ module.exports = {
 
         let bet = 0;
         const lower = rawBet.toLowerCase();
+        const maxBet = db.getUserMaxBet(userId);
+        
         if (lower === 'all' || lower === 'allin') {
-            bet = Math.min(balance, 10000000);
-            if (bet > 10000000) bet = 10000000; // Safety Net
+            bet = Math.min(balance, maxBet);
+            if (bet > maxBet) bet = maxBet; // Safety Net
         }
         else if (lower.endsWith('k')) bet = parseFloat(lower) * 1000;
         else if (lower.endsWith('m') || lower.endsWith('jt')) bet = parseFloat(lower) * 1000000;
         else bet = parseInt(lower);
 
         if (isNaN(bet) || bet <= 0) return message.reply('❌ Jumlah taruhan tidak valid!');
-        if (bet > 10000000) return message.reply('❌ Maksimal taruhan adalah 10 Juta!');
+        if (bet > maxBet) return message.reply(`❌ Maksimal taruhan adalah Rp ${maxBet.toLocaleString('id-ID')}!`);
 
         // Cooldown Check (20 Seconds)
         const now = Date.now();
@@ -51,32 +53,32 @@ module.exports = {
         missionHandler.trackMission(userId, 'play_crash');
 
         // Calculate Crash Point
-        // Algorithm: 1% instant crash (1.00x).
-        // Distribution based on e^x. 
-        // Simple algo: 0.99 / (1 - random)
-        // But let's cap it or make it fun.
-        // House Edge 4%: 100 / (1 - h) ...
-
-        // Standard Crash Algo:
-        // E = 0.01 // 1% instant crash
-        // H = 0.04 // 4% house edge
-        // R = Math.random()
-        // Multiplier = (100 * (1 - H)) / (100 * (1 - R)) ? No that's complex.
-
-        // Simple Implementation:
-        // Multiplier = 0.99 / (1 - Math.random())
-        // If result > max, cap it.
-
+        // Algorithm: 3% instant crash (1.00x), then exponential distribution
+        // House Edge: ~4% (built into distribution)
+        
         const r = Math.random();
         let crashPoint = 1.00;
 
-        if (r > 0.03) { // 3% chance of instant crash (1.00x) - Reduced from 5%
-            crashPoint = Math.floor(100 / (1 - Math.random())) / 100;
-            // Apply House Edge? The formula 1/(1-r) is already fair-ish but infinite mean.
-            // Let's use a simpler weighted random for game feel.
-            // 50% chance < 2.00x
-        } else {
+        if (r < 0.03) {
+            // 3% chance of instant crash (1.00x)
             crashPoint = 1.00;
+        } else {
+            // Exponential distribution with house edge
+            // Formula: crashPoint = 1 + (maxMultiplier - 1) * (1 - r^houseEdge)
+            // Simplified: Use weighted distribution for better game feel
+            const houseEdge = 0.96; // 4% house edge
+            const maxMultiplier = 100;
+            const adjustedRandom = (r - 0.03) / 0.97; // Normalize to 0-1 range (after removing 3% instant crash)
+            
+            // Exponential-like distribution: lower values more common
+            // Using: 1 + (max - 1) * (1 - (1 - adjustedRandom)^power)
+            // Power < 1 makes lower multipliers more common
+            const power = 0.7; // Adjusts distribution curve
+            const baseMultiplier = 1 + (maxMultiplier - 1) * (1 - Math.pow(1 - adjustedRandom, power));
+            crashPoint = Math.floor(baseMultiplier * houseEdge * 100) / 100;
+            
+            // Ensure minimum is 1.01x (after instant crash)
+            if (crashPoint < 1.01) crashPoint = 1.01;
         }
 
         // Cap at 100x for safety in this bot economy
@@ -109,49 +111,63 @@ module.exports = {
             walletType
         };
 
-        // Start Loop
+        // Start Loop with error handling
         game.interval = setInterval(async () => {
-            if (game.isCashedOut) {
-                clearInterval(game.interval);
-                return;
-            }
-
-            // Increase Multiplier
-            // Speed curve: Slow at start, fast later
-            // Simple linear increment for Discord rate limits
-            // +0.2x every 2 seconds? Too slow.
-            // Let's do exponential visual: 1.0 -> 1.1 -> 1.3 -> 1.6...
-
-            const elapsed = (Date.now() - game.startTime) / 1000; // seconds
-            // Formula: M = e^(0.06 * t) 
-            // t=0, M=1. t=10, M=1.8. t=20, M=3.3.
-
-            let nextMult = Math.pow(Math.E, 0.1 * elapsed);
-            if (nextMult < 1.00) nextMult = 1.00;
-
-            // Check Crash
-            if (nextMult >= game.crashPoint) {
-                clearInterval(game.interval);
-                this.endGame(msg, game, true); // Crashed
-            } else {
-                game.multiplier = nextMult;
-                // Update Message (Rate Limit handling: only update if change is significant or every 2s)
-                // Discord rate limit is 5 edits/5s per channel? Or per message?
-                // Safe bet: Update every 2-3 seconds.
-
-                // For smoother feel, we might skip some edits if too fast.
-                // But setInterval is already controlling timing.
-
-                try {
-                    const newEmbed = new EmbedBuilder()
-                        .setTitle('📈 SAHAM GORENGAN (Crash)')
-                        .setDescription(`Bet: **Rp ${game.bet.toLocaleString('id-ID')}**\n\n# ${game.multiplier.toFixed(2)}x\n\n*Naik terus!*`)
-                        .setColor('#00FF00');
-
-                    await msg.edit({ embeds: [newEmbed] });
-                } catch (e) {
-                    // Ignore edit errors (rate limits)
+            try {
+                if (game.isCashedOut) {
+                    clearInterval(game.interval);
+                    game.interval = null;
+                    return;
                 }
+
+                // Increase Multiplier
+                // Speed curve: Slow at start, fast later
+                // Simple linear increment for Discord rate limits
+                // +0.2x every 2 seconds? Too slow.
+                // Let's do exponential visual: 1.0 -> 1.1 -> 1.3 -> 1.6...
+
+                const elapsed = (Date.now() - game.startTime) / 1000; // seconds
+                // Formula: M = e^(0.06 * t) 
+                // t=0, M=1. t=10, M=1.8. t=20, M=3.3.
+
+                let nextMult = Math.pow(Math.E, 0.1 * elapsed);
+                if (nextMult < 1.00) nextMult = 1.00;
+
+                // Check Crash
+                if (nextMult >= game.crashPoint) {
+                    clearInterval(game.interval);
+                    game.interval = null;
+                    this.endGame(msg, game, true); // Crashed
+                    return;
+                } else {
+                    game.multiplier = nextMult;
+                    // Update Message (Rate Limit handling: only update if change is significant or every 2s)
+                    // Discord rate limit is 5 edits/5s per channel? Or per message?
+                    // Safe bet: Update every 2-3 seconds.
+
+                    // For smoother feel, we might skip some edits if too fast.
+                    // But setInterval is already controlling timing.
+
+                    try {
+                        const newEmbed = new EmbedBuilder()
+                            .setTitle('📈 SAHAM GORENGAN (Crash)')
+                            .setDescription(`Bet: **Rp ${game.bet.toLocaleString('id-ID')}**\n\n# ${game.multiplier.toFixed(2)}x\n\n*Naik terus!*`)
+                            .setColor('#00FF00');
+
+                        await msg.edit({ embeds: [newEmbed] });
+                    } catch (e) {
+                        // Ignore edit errors (rate limits)
+                    }
+                }
+            } catch (error) {
+                // Cleanup on error
+                console.error('[Crash Game Error]', error);
+                clearInterval(game.interval);
+                game.interval = null;
+                activeCrash.delete(game.messageId);
+                try {
+                    await msg.edit({ content: '❌ **Error terjadi!** Game dihentikan.', embeds: [] });
+                } catch (e) { }
             }
         }, 2000); // 2 seconds update interval
 
@@ -171,15 +187,22 @@ module.exports = {
         if (interaction.customId === 'crash_cashout') {
             if (game.isCashedOut) return;
             game.isCashedOut = true;
-            clearInterval(game.interval);
+            if (game.interval) {
+                clearInterval(game.interval);
+                game.interval = null;
+            }
 
             const winAmount = Math.floor(game.bet * game.multiplier);
             db.updateBalance(game.userId, winAmount);
+            
+            // Track Mission - Win Crash
+            missionHandler.trackMission(game.userId, 'win_crash');
 
             const embed = new EmbedBuilder()
                 .setTitle('💰 PROFIT SUKSES!')
                 .setDescription(`Kamu berhasil JUAL di angka **${game.multiplier.toFixed(2)}x**!\nWin: **Rp ${winAmount.toLocaleString('id-ID')}**\n*${game.walletType}*`)
-                .setColor('#00FF00');
+                .setColor('#00FF00')
+                .setFooter({ text: `History: ${this.getHistoryString()}` });
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()

@@ -2,31 +2,278 @@
 <html lang="id" data-bs-theme="dark">
 
 <head>
-    <title>Alice Admin Panel</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Warung Mang Ujang Admin Panel</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <link href="/styles/theme.css" rel="stylesheet">
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%);
+            min-height: 100vh;
             font-size: 0.9rem;
+            color: #e0e0e0;
+        }
+
+        .navbar {
+            background: rgba(20, 25, 40, 0.95) !important;
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+            padding: 12px 0;
+        }
+
+        .navbar-brand {
+            font-size: 18px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .nav-link-custom {
+            padding: 8px 16px;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+            font-size: 13px;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .nav-link-custom i {
+            font-size: 14px;
+        }
+
+        .nav-link-custom.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white !important;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .nav-link-custom:not(.active) {
+            background: rgba(255, 255, 255, 0.05);
+            color: rgba(255, 255, 255, 0.7) !important;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .nav-link-custom:not(.active):hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: white !important;
+            transform: translateY(-2px);
+        }
+
+        .container {
+            padding-top: 20px;
+            padding-bottom: 40px;
+        }
+
+        .card {
+            background: rgba(20, 25, 40, 0.95);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+        }
+
+        .card-header {
+            background: linear-gradient(135deg, rgba(102, 126, 234, 0.2) 0%, rgba(118, 75, 162, 0.2) 100%);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 16px 20px;
+            font-weight: 600;
+        }
+
+        .table {
+            color: #e0e0e0;
+        }
+
+        .table-dark {
+            background: transparent;
+        }
+
+        .table-dark thead th {
+            background: rgba(255, 255, 255, 0.05);
+            border-bottom: 2px solid rgba(255, 255, 255, 0.1);
+            font-weight: 600;
+            text-transform: uppercase;
+            font-size: 11px;
+            letter-spacing: 0.5px;
+        }
+
+        .table-dark tbody tr {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            transition: all 0.2s ease;
+        }
+
+        .table-dark tbody tr:hover {
+            background: rgba(255, 255, 255, 0.05);
+            transform: scale(1.01);
+        }
+
+        .btn {
+            border-radius: 8px;
+            font-weight: 500;
+            transition: all 0.3s ease;
+            border: none;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-weight: 500;
+        }
+
+        .form-control, .form-select {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            border-radius: 8px;
+        }
+
+        .form-control:focus, .form-select:focus {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.2);
+            color: white;
+        }
+
+        .modal-content {
+            background: rgba(20, 25, 40, 0.98);
+            backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 16px;
+        }
+
+        .modal-header {
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .modal-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .alert {
+            border-radius: 12px;
+            border: none;
+        }
+
+        .countdown {
+            font-weight: 600;
+            color: #4ade80;
+        }
+
+        .text-muted {
+            color: rgba(255, 255, 255, 0.5) !important;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .card {
+            animation: fadeIn 0.5s ease-out;
         }
     </style>
 </head>
 
 <body>
 
-    <nav class="navbar navbar-expand-lg navbar-dark bg-dark border-bottom border-secondary mb-4">
+    <nav class="navbar navbar-expand-lg navbar-dark mb-4">
         <div class="container">
-            <a class="navbar-brand text-info fw-bold" href="/">🤖 ALICE ADMIN</a>
-            <div class="d-flex gap-2">
-                <a href="/" class="btn btn-sm <%= activeTab === 'roles' ? 'btn-primary' : 'btn-outline-secondary' %>">👥
-                    Roles</a>
-                <a href="/stocks"
-                    class="btn btn-sm <%= activeTab === 'stocks' ? 'btn-success' : 'btn-outline-secondary' %>">🎒
-                    Stocks</a>
-                <a href="/moderation"
-                    class="btn btn-sm <%= activeTab === 'moderation' ? 'btn-danger' : 'btn-outline-secondary' %>">🛡️
-                    Moderation</a>
-                <a href="/logout" class="btn btn-sm btn-danger">Logout</a>
+            <a class="navbar-brand" href="/admin">
+                <i class="fas fa-store me-2"></i>WARUNG MANG UJANG ADMIN
+            </a>
+            <div class="d-flex gap-2 flex-wrap">
+                <a href="/admin" class="nav-link-custom <%= activeTab === 'roles' ? 'active' : '' %>">
+                    <i class="fas fa-users"></i> Roles
+                </a>
+                <a href="/stocks" class="nav-link-custom <%= activeTab === 'stocks' ? 'active' : '' %>">
+                    <i class="fas fa-box"></i> Stocks
+                </a>
+                <a href="/economy" class="nav-link-custom <%= activeTab === 'economy' ? 'active' : '' %>">
+                    <i class="fas fa-coins"></i> Economy
+                </a>
+                <a href="/games" class="nav-link-custom <%= activeTab === 'games' ? 'active' : '' %>">
+                    <i class="fas fa-gamepad"></i> Games
+                </a>
+                <a href="/users" class="nav-link-custom <%= activeTab === 'users' ? 'active' : '' %>">
+                    <i class="fas fa-user"></i> Users
+                </a>
+                <a href="/moderation" class="nav-link-custom <%= activeTab === 'moderation' ? 'active' : '' %>">
+                    <i class="fas fa-shield-alt"></i> Moderation
+                </a>
+                <a href="/system" class="nav-link-custom <%= activeTab === 'system' ? 'active' : '' %>">
+                    <i class="fas fa-cog"></i> System
+                </a>
+                <a href="/leaderboard" class="nav-link-custom <%= activeTab === 'leaderboard' ? 'active' : '' %>">
+                    <i class="fas fa-trophy"></i> Leaderboard
+                </a>
+                <a href="/logs" class="nav-link-custom <%= activeTab === 'logs' ? 'active' : '' %>">
+                    <i class="fas fa-history"></i> Logs
+                </a>
+                <a href="/statistics" class="nav-link-custom <%= activeTab === 'statistics' ? 'active' : '' %>">
+                    <i class="fas fa-chart-bar"></i> Stats
+                </a>
+                <a href="/events" class="nav-link-custom <%= activeTab === 'events' ? 'active' : '' %>">
+                    <i class="fas fa-calendar-alt"></i> Events
+                </a>
+                <a href="/analytics" class="nav-link-custom <%= activeTab === 'analytics' ? 'active' : '' %>">
+                    <i class="fas fa-chart-line"></i> Analytics
+                </a>
+                <a href="/admins" class="nav-link-custom <%= activeTab === 'admins' ? 'active' : '' %>">
+                    <i class="fas fa-user-shield"></i> Admins
+                </a>
+                <a href="/quick" class="nav-link-custom <%= activeTab === 'quick' ? 'active' : '' %>">
+                    <i class="fas fa-bolt"></i> Quick
+                </a>
+                <a href="/monitoring" class="nav-link-custom <%= activeTab === 'monitoring' ? 'active' : '' %>">
+                    <i class="fas fa-heartbeat"></i> Monitor
+                </a>
+                <a href="/notifications" class="nav-link-custom <%= activeTab === 'notifications' ? 'active' : '' %>">
+                    <i class="fas fa-bell"></i> <span id="notificationBadge" class="badge bg-danger" style="display: none;">!</span>
+                </a>
+                <a href="/say" class="nav-link-custom <%= activeTab === 'say' ? 'active' : '' %>">
+                    <i class="fas fa-comment-dots"></i> Say
+                </a>
+                <a href="/limiter" class="nav-link-custom <%= activeTab === 'limiter' ? 'active' : '' %>">
+                    <i class="fas fa-ban"></i> Limiter
+                </a>
+                <a href="/maxbet" class="nav-link-custom <%= activeTab === 'maxbet' ? 'active' : '' %>">
+                    <i class="fas fa-dollar-sign"></i> Max Bet
+                </a>
+                <a href="/logout" class="nav-link-custom" style="background: rgba(220, 53, 69, 0.2); color: #dc3545 !important;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
             </div>
         </div>
     </nav>
@@ -164,6 +411,1313 @@
                             <% }); %>
                     </div>
                     <% } %>
+
+        <!-- ECONOMY DASHBOARD -->
+        <% if (activeTab === 'economy') { %>
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card glass-panel border-warning">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">💰 Total Money</h6>
+                            <h4 class="text-warning mb-0"><%= (totalMoney || 0).toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-info">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">🏦 Bank Deposits</h6>
+                            <h4 class="text-info mb-0"><%= (totalBank || 0).toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-danger">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">💸 Active Loans</h6>
+                            <h4 class="text-danger mb-0"><%= (totalLoans || 0).toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-success">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">👥 Total Users</h6>
+                            <h4 class="text-success mb-0"><%= (userCount || 0).toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0">📊 Wealth Distribution</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2">💰 Users >10M: <strong><%= richUsers || 0 %></strong></p>
+                            <p class="mb-0">💎 Users >100M: <strong><%= ultraRich || 0 %></strong></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">🏆 Top 10 Richest Users</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div class="table-responsive">
+                                <table class="table table-dark table-sm mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th>Rank</th>
+                                            <th>User</th>
+                                            <th class="text-end">Main</th>
+                                            <th class="text-end">Bank</th>
+                                            <th class="text-end">Total</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <% if (topUsers && topUsers.length > 0) { %>
+                                            <% topUsers.forEach((u, i) => { %>
+                                                <tr>
+                                                    <td><strong>#<%= i + 1 %></strong></td>
+                                                    <td><%= u.username %></td>
+                                                    <td class="text-end"><%= u.mainBalance.toLocaleString('id-ID') %></td>
+                                                    <td class="text-end"><%= u.bankBalance.toLocaleString('id-ID') %></td>
+                                                    <td class="text-end"><strong><%= u.total.toLocaleString('id-ID') %></strong></td>
+                                                </tr>
+                                            <% }); %>
+                                        <% } else { %>
+                                            <tr><td colspan="5" class="text-center text-muted">No data</td></tr>
+                                        <% } %>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- USER MANAGEMENT -->
+        <% if (activeTab === 'users') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0">🔍 Search User</h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="/users" class="d-flex gap-2">
+                        <input type="text" name="search" class="form-control bg-dark text-white" placeholder="User ID atau Username..." value="<%= search || '' %>">
+                        <button type="submit" class="btn btn-primary">Search</button>
+                    </form>
+                </div>
+            </div>
+
+            <% if (users && users.length > 0) { %>
+                <div class="card glass-panel">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0">👤 User Results (<%= users.length %>)</h6>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-end">Main Balance</th>
+                                        <th class="text-end">Bank</th>
+                                        <th class="text-end">Loan</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% users.forEach(u => { %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= u.username %></strong><br>
+                                                <small class="text-muted"><%= u.userId %></small>
+                                            </td>
+                                            <td class="text-end"><%= u.balance.toLocaleString('id-ID') %></td>
+                                            <td class="text-end"><%= u.bankBalance.toLocaleString('id-ID') %></td>
+                                            <td class="text-end"><%= u.loan > 0 ? u.loan.toLocaleString('id-ID') : '-' %></td>
+                                            <td>
+                                                <% if (u.isJailed) { %>
+                                                    <span class="badge bg-danger">🔒 Jailed</span>
+                                                <% } %>
+                                                <% if (u.penalty !== 0) { %>
+                                                    <span class="badge bg-warning">⚠️ Penalty: <%= u.penalty %>%</span>
+                                                <% } %>
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-warning" onclick="openEditModal('<%= u.userId %>', '<%= u.username %>', <%= u.balance %>, <%= u.penalty %>)">Edit</button>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            <% } else if (search) { %>
+                <div class="alert alert-warning">No users found for "<%= search %>"</div>
+            <% } %>
+        <% } %>
+
+        <!-- LEADERBOARD -->
+        <% if (activeTab === 'leaderboard') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-trophy me-2"></i>Top Leaderboard (<%= topUsers ? topUsers.length : 0 %> users)
+                    </h6>
+                </div>
+                <% if (adminWallets && adminWallets.length > 0) { %>
+                    <div class="card-body border-bottom border-secondary">
+                        <h6 class="text-warning mb-3">
+                            <i class="fas fa-crown me-2"></i>Admin Fake Wallets (Tidak bisa menerima transfer)
+                        </h6>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-sm mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>Admin</th>
+                                        <th class="text-end">Main Balance</th>
+                                        <th class="text-end">Bank</th>
+                                        <th class="text-end">Total</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% adminWallets.forEach(a => { %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= a.username %></strong><br>
+                                                <small class="text-muted"><%= a.userId %></small>
+                                                <span class="badge bg-danger ms-2">👑 Admin</span>
+                                            </td>
+                                            <td class="text-end"><%= a.mainBalance.toLocaleString('id-ID') %></td>
+                                            <td class="text-end"><%= a.bankBalance.toLocaleString('id-ID') %></td>
+                                            <td class="text-end"><strong><%= a.total.toLocaleString('id-ID') %></strong></td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-info me-1" onclick="openEditModal('<%= a.userId %>', '<%= a.username %>', <%= a.mainBalance %>, 0)">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                <% } %>
+                <div class="card-body p-0">
+                    <% if (topUsers && topUsers.length > 0) { %>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th style="width: 60px;">Rank</th>
+                                        <th>User</th>
+                                        <th class="text-end">Main Balance</th>
+                                        <th class="text-end">Bank</th>
+                                        <th class="text-end">Total</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% topUsers.forEach((u, i) => { %>
+                                        <tr>
+                                            <td>
+                                                <% if (u.rank === 1) { %>
+                                                    <span class="badge bg-warning text-dark">🥇 #<%= u.rank %></span>
+                                                <% } else if (u.rank === 2) { %>
+                                                    <span class="badge bg-secondary">🥈 #<%= u.rank %></span>
+                                                <% } else if (u.rank === 3) { %>
+                                                    <span class="badge" style="background-color: #CD7F32;">🥉 #<%= u.rank %></span>
+                                                <% } else { %>
+                                                    <strong>#<%= u.rank %></strong>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <strong><%= u.username %></strong><br>
+                                                <small class="text-muted"><%= u.userId %></small>
+                                            </td>
+                                            <td class="text-end"><%= u.mainBalance.toLocaleString('id-ID') %></td>
+                                            <td class="text-end"><%= u.bankBalance.toLocaleString('id-ID') %></td>
+                                            <td class="text-end"><strong><%= u.total.toLocaleString('id-ID') %></strong></td>
+                                            <td>
+                                                <% if (u.isAdmin) { %>
+                                                    <span class="badge bg-danger">👑 Admin</span>
+                                                <% } %>
+                                                <% if (u.isBlacklisted) { %>
+                                                    <span class="badge bg-dark">🚫 Blacklisted</span>
+                                                <% } %>
+                                            </td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-info me-1" onclick="openEditModal('<%= u.userId %>', '<%= u.username %>', <%= u.mainBalance %>, 0)">
+                                                    <i class="fas fa-edit"></i> Edit
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" onclick="deleteWallet('<%= u.userId %>', '<%= u.username %>')">
+                                                    <i class="fas fa-trash"></i>
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div class="p-4 text-center text-muted">No leaderboard data available</div>
+                    <% } %>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- MODERATION -->
+        <% if (activeTab === 'moderation') { %>
+            <div class="row g-3 mb-4">
+                <div class="col-md-6">
+                    <div class="card glass-panel border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <h6 class="mb-0">🔒 Jailed Users (<%= jailedUsers ? jailedUsers.length : 0 %>)</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <% if (jailedUsers && jailedUsers.length > 0) { %>
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th>Reason</th>
+                                                <th>Release</th>
+                                                <th class="text-end">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% jailedUsers.forEach(j => { %>
+                                                <tr>
+                                                    <td><%= j.username %><br><small class="text-muted"><%= j.userId %></small></td>
+                                                    <td><%= j.reason %></td>
+                                                    <td><span class="countdown" data-expires="<%= j.releaseTime %>">Calculating...</span></td>
+                                                    <td class="text-end">
+                                                        <form action="/api/unjail-user" method="POST" class="d-inline" onsubmit="return confirm('Unjail user ini?');">
+                                                            <input type="hidden" name="userId" value="<%= j.userId %>">
+                                                            <button class="btn btn-sm btn-success">Unjail</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <% }); %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <% } else { %>
+                                <div class="p-3 text-center text-muted">No jailed users</div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card glass-panel border-warning">
+                        <div class="card-header bg-warning text-dark">
+                            <h6 class="mb-0">🚫 Blacklisted Users (<%= blacklisted ? blacklisted.length : 0 %>)</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <% if (blacklisted && blacklisted.length > 0) { %>
+                                <div class="table-responsive">
+                                    <table class="table table-dark table-sm mb-0">
+                                        <thead>
+                                            <tr>
+                                                <th>User</th>
+                                                <th class="text-end">Action</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            <% blacklisted.forEach(b => { %>
+                                                <tr>
+                                                    <td><%= b.username %><br><small class="text-muted"><%= b.userId %></small></td>
+                                                    <td class="text-end">
+                                                        <form action="/api/unblacklist-user" method="POST" class="d-inline" onsubmit="return confirm('Remove blacklist?');">
+                                                            <input type="hidden" name="userId" value="<%= b.userId %>">
+                                                            <button class="btn btn-sm btn-success">Remove</button>
+                                                        </form>
+                                                    </td>
+                                                </tr>
+                                            <% }); %>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            <% } else { %>
+                                <div class="p-3 text-center text-muted">No blacklisted users</div>
+                            <% } %>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card glass-panel">
+                <div class="card-header bg-danger text-white">
+                    <h6 class="mb-0">⚡ Quick Actions</h6>
+                </div>
+                <div class="card-body">
+                    <form action="/api/jail-user" method="POST" class="row g-3">
+                        <div class="col-md-4">
+                            <label class="small text-muted">User ID</label>
+                            <input type="text" name="userId" class="form-control bg-dark text-white" placeholder="User ID" required>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="small text-muted">Hours</label>
+                            <input type="number" name="hours" class="form-control bg-dark text-white" placeholder="24" required min="1">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="small text-muted">Reason</label>
+                            <input type="text" name="reason" class="form-control bg-dark text-white" placeholder="Reason..." value="Admin Action">
+                        </div>
+                        <div class="col-md-1">
+                            <label class="small text-muted">&nbsp;</label>
+                            <button type="submit" class="btn btn-danger w-100">Jail</button>
+                        </div>
+                    </form>
+                    <hr class="border-secondary">
+                    <form action="/api/blacklist-user" method="POST" class="row g-3">
+                        <div class="col-md-10">
+                            <label class="small text-muted">Blacklist User ID (Leaderboard)</label>
+                            <input type="text" name="userId" class="form-control bg-dark text-white" placeholder="User ID" required>
+                        </div>
+                        <div class="col-md-2">
+                            <label class="small text-muted">&nbsp;</label>
+                            <button type="submit" class="btn btn-warning w-100">Blacklist</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- ACTIVITY LOGS -->
+        <% if (activeTab === 'logs') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-history me-2"></i>Activity Logs
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <form method="GET" action="/logs" class="row g-3 mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Filter by Action Type</label>
+                            <select name="type" class="form-select">
+                                <option value="">All Actions</option>
+                                <% if (actionTypes) { actionTypes.forEach(type => { %>
+                                    <option value="<%= type %>" <%= selectedType === type ? 'selected' : '' %>><%= type %></option>
+                                <% }); } %>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label">Limit</label>
+                            <input type="number" name="limit" class="form-control" value="<%= limit || 100 %>" min="10" max="500">
+                        </div>
+                        <div class="col-md-3 d-flex align-items-end">
+                            <button type="submit" class="btn btn-primary w-100">Filter</button>
+                        </div>
+                    </form>
+                    
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Action</th>
+                                    <th>User</th>
+                                    <th>Target</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (logs && logs.length > 0) { %>
+                                    <% logs.forEach(log => { %>
+                                        <tr>
+                                            <td><small><%= new Date(log.timestamp).toLocaleString('id-ID') %></small></td>
+                                            <td><span class="badge bg-info"><%= log.actionType %></span></td>
+                                            <td><%= log.username %><br><small class="text-muted"><%= log.userId %></small></td>
+                                            <td><%= log.targetName || '-' %></td>
+                                            <td><small><%= log.details || '-' %></small></td>
+                                        </tr>
+                                    <% }); %>
+                                <% } else { %>
+                                    <tr><td colspan="5" class="text-center text-muted">No logs found</td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- USER STATISTICS -->
+        <% if (activeTab === 'statistics') { %>
+            <% if (searchedUserId) { %>
+                <div class="card glass-panel mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-user me-2"></i>Statistics for <%= searchedUsername %>
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <% if (userStats) { %>
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <div class="card bg-dark border-primary">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted">Total Work</h6>
+                                            <h4 class="text-primary"><%= userStats.total_work || 0 %></h4>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-dark border-warning">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted">Total Gambles</h6>
+                                            <h4 class="text-warning"><%= userStats.total_gambles || 0 %></h4>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-dark border-success">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted">Total Wins</h6>
+                                            <h4 class="text-success"><%= userStats.total_wins || 0 %></h4>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="card bg-dark border-info">
+                                        <div class="card-body text-center">
+                                            <h6 class="text-muted">Highest Balance</h6>
+                                            <h4 class="text-info"><%= (userStats.highest_balance || 0).toLocaleString('id-ID') %></h4>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        <% } else { %>
+                            <div class="alert alert-warning">No statistics found for this user</div>
+                        <% } %>
+                    </div>
+                </div>
+            <% } else { %>
+                <div class="card glass-panel mb-4">
+                    <div class="card-header">
+                        <h6 class="mb-0">
+                            <i class="fas fa-chart-bar me-2"></i>Top Statistics
+                        </h6>
+                    </div>
+                    <div class="card-body">
+                        <form method="GET" action="/statistics" class="mb-4">
+                            <div class="input-group">
+                                <input type="text" name="userId" class="form-control" placeholder="Search by User ID...">
+                                <button type="submit" class="btn btn-primary">Search</button>
+                            </div>
+                        </form>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <div class="card glass-panel">
+                                    <div class="card-header bg-primary">Top Workers</div>
+                                    <div class="card-body p-0">
+                                        <table class="table table-dark table-sm mb-0">
+                                            <thead><tr><th>User</th><th class="text-end">Work</th></tr></thead>
+                                            <tbody>
+                                                <% if (topWorkers && topWorkers.length > 0) { %>
+                                                    <% topWorkers.forEach((u, i) => { %>
+                                                        <tr><td>#<%= i+1 %> <%= u.username %></td><td class="text-end"><%= u.total_work || 0 %></td></tr>
+                                                    <% }); %>
+                                                <% } else { %>
+                                                    <tr><td colspan="2" class="text-center text-muted">No data</td></tr>
+                                                <% } %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card glass-panel">
+                                    <div class="card-header bg-warning">Top Gamblers</div>
+                                    <div class="card-body p-0">
+                                        <table class="table table-dark table-sm mb-0">
+                                            <thead><tr><th>User</th><th class="text-end">Gambles</th></tr></thead>
+                                            <tbody>
+                                                <% if (topGamblers && topGamblers.length > 0) { %>
+                                                    <% topGamblers.forEach((u, i) => { %>
+                                                        <tr><td>#<%= i+1 %> <%= u.username %></td><td class="text-end"><%= u.total_gambles || 0 %></td></tr>
+                                                    <% }); %>
+                                                <% } else { %>
+                                                    <tr><td colspan="2" class="text-center text-muted">No data</td></tr>
+                                                <% } %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="card glass-panel">
+                                    <div class="card-header bg-success">Top Winners</div>
+                                    <div class="card-body p-0">
+                                        <table class="table table-dark table-sm mb-0">
+                                            <thead><tr><th>User</th><th class="text-end">Wins</th></tr></thead>
+                                            <tbody>
+                                                <% if (topWinners && topWinners.length > 0) { %>
+                                                    <% topWinners.forEach((u, i) => { %>
+                                                        <tr><td>#<%= i+1 %> <%= u.username %></td><td class="text-end"><%= u.total_wins || 0 %></td></tr>
+                                                    <% }); %>
+                                                <% } else { %>
+                                                    <tr><td colspan="2" class="text-center text-muted">No data</td></tr>
+                                                <% } %>
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            <% } %>
+        <% } %>
+
+        <!-- EVENT MANAGEMENT -->
+        <% if (activeTab === 'events') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-calendar-alt me-2"></i>Event Management
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="eventAlert" class="alert" style="display: none;"></div>
+                    
+                    <form id="createEventForm" class="mb-4">
+                        <h6 class="mb-3">Create New Event</h6>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Event Name</label>
+                                <input type="text" id="eventName" class="form-control" placeholder="Event Name" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Entry Fee</label>
+                                <input type="number" id="eventFee" class="form-control" value="0" min="0" required>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">Initial Balance</label>
+                                <input type="number" id="eventInitialBalance" class="form-control" placeholder="10000000" min="0" required>
+                            </div>
+                            <div class="col-md-2">
+                                <label class="form-label">Duration (Hours)</label>
+                                <input type="number" id="eventDuration" class="form-control" value="24" min="1" required>
+                            </div>
+                            <div class="col-md-1 d-flex align-items-end">
+                                <button type="submit" class="btn btn-primary w-100">Create</button>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <hr class="border-secondary mb-4">
+                    
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Event Name</th>
+                                    <th>Status</th>
+                                    <th>Start</th>
+                                    <th>End</th>
+                                    <th>Participants</th>
+                                    <th>Entry Fee</th>
+                                    <th>Initial Balance</th>
+                                    <th>Created By</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (events && events.length > 0) { %>
+                                    <% events.forEach(e => { %>
+                                        <tr>
+                                            <td><strong><%= e.name %></strong></td>
+                                            <td>
+                                                <% if (e.is_active) { %>
+                                                    <span class="badge bg-success">Active</span>
+                                                <% } else { %>
+                                                    <span class="badge bg-secondary">Inactive</span>
+                                                <% } %>
+                                            </td>
+                                            <td><small><%= new Date(e.start_time).toLocaleString('id-ID') %></small></td>
+                                            <td><small><%= new Date(e.end_time).toLocaleString('id-ID') %></small></td>
+                                            <td><%= e.participantCount %></td>
+                                            <td><%= e.entry_fee.toLocaleString('id-ID') %></td>
+                                            <td><%= e.initial_balance.toLocaleString('id-ID') %></td>
+                                            <td><%= e.createdByName %></td>
+                                            <td class="text-end">
+                                                <% if (e.is_active) { %>
+                                                    <button class="btn btn-sm btn-outline-danger" onclick="stopEvent(<%= e.id %>, '<%= e.name %>')">Stop</button>
+                                                <% } else { %>
+                                                    <span class="text-muted">-</span>
+                                                <% } %>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                <% } else { %>
+                                    <tr><td colspan="9" class="text-center text-muted">No events found</td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- ANALYTICS -->
+        <% if (activeTab === 'analytics') { %>
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card glass-panel border-primary">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Total Money</h6>
+                            <h4 class="text-primary"><%= (totalMoney || 0).toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-info">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Total Users</h6>
+                            <h4 class="text-info"><%= totalUsers || 0 %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-success">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Active Users</h6>
+                            <h4 class="text-success"><%= activeUsers || 0 %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-warning">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Total Gambles</h6>
+                            <h4 class="text-warning"><%= (totalGambles || 0).toLocaleString('id-ID') %></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header">Wealth Distribution</div>
+                        <div class="card-body">
+                            <p>Users >1M: <strong><%= users1M || 0 %></strong></p>
+                            <p>Users >10M: <strong><%= users10M || 0 %></strong></p>
+                            <p>Users >100M: <strong><%= users100M || 0 %></strong></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header">Game Statistics</div>
+                        <div class="card-body">
+                            <p>Total Work: <strong><%= (totalWork || 0).toLocaleString('id-ID') %></strong></p>
+                            <p>Total Wins: <strong><%= (totalWins || 0).toLocaleString('id-ID') %></strong></p>
+                            <p>Win Rate: <strong><%= totalGambles > 0 ? ((totalWins / totalGambles) * 100).toFixed(2) : 0 %>%</strong></p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- ADMIN MANAGEMENT -->
+        <% if (activeTab === 'admins') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-user-shield me-2"></i>Admin Management
+                    </h6>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Admin</th>
+                                    <th>Added By</th>
+                                    <th>Added At</th>
+                                    <th class="text-end">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (admins && admins.length > 0) { %>
+                                    <% admins.forEach(a => { %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= a.username %></strong><br>
+                                                <small class="text-muted"><%= a.user_id %></small>
+                                            </td>
+                                            <td><%= a.addedByName %></td>
+                                            <td><small><%= new Date(a.added_at).toLocaleString('id-ID') %></small></td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-danger" onclick="removeAdmin('<%= a.user_id %>', '<%= a.username %>')">Remove</button>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                <% } else { %>
+                                    <tr><td colspan="4" class="text-center text-muted">No admins found</td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card glass-panel">
+                <div class="card-header">
+                    <h6 class="mb-0">Add New Admin</h6>
+                </div>
+                <div class="card-body">
+                    <form id="addAdminForm">
+                        <div class="mb-3">
+                            <label class="form-label">User ID</label>
+                            <input type="text" id="newAdminId" class="form-control" placeholder="User ID" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Add Admin</button>
+                    </form>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- QUICK ACTIONS -->
+        <% if (activeTab === 'quick') { %>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-primary">Bulk Jail</div>
+                        <div class="card-body">
+                            <form id="bulkJailForm">
+                                <div class="mb-3">
+                                    <label class="form-label">User IDs (one per line)</label>
+                                    <textarea id="bulkJailIds" class="form-control" rows="5" placeholder="User ID 1&#10;User ID 2&#10;User ID 3" required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Hours</label>
+                                    <input type="number" id="bulkJailHours" class="form-control" value="24" min="1" required>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Reason</label>
+                                    <input type="text" id="bulkJailReason" class="form-control" value="Bulk Action" required>
+                                </div>
+                                <button type="submit" class="btn btn-danger w-100">Jail All</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-warning">Bulk Balance</div>
+                        <div class="card-body">
+                            <form id="bulkBalanceForm">
+                                <div class="mb-3">
+                                    <label class="form-label">User IDs (one per line)</label>
+                                    <textarea id="bulkBalanceIds" class="form-control" rows="5" placeholder="User ID 1&#10;User ID 2&#10;User ID 3" required></textarea>
+                                </div>
+                                <div class="mb-3">
+                                    <label class="form-label">Amount</label>
+                                    <input type="number" id="bulkBalanceAmount" class="form-control" placeholder="Amount" required>
+                                </div>
+                                <button type="submit" class="btn btn-warning w-100">Add Balance to All</button>
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- MONITORING -->
+        <% if (activeTab === 'monitoring') { %>
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card glass-panel border-success">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Uptime</h6>
+                            <h4 class="text-success"><%= uptime || 'N/A' %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-danger">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Jailed Users</h6>
+                            <h4 class="text-danger"><%= activeJailed || 0 %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-warning">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Active Loans</h6>
+                            <h4 class="text-warning"><%= activeLoans || 0 %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card glass-panel border-info">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">Active Events</h6>
+                            <h4 class="text-info"><%= activeEvents || 0 %></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card glass-panel">
+                <div class="card-header">Recent Activity</div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-dark table-sm mb-0">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Action</th>
+                                    <th>User</th>
+                                    <th>Details</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <% if (recentLogs && recentLogs.length > 0) { %>
+                                    <% recentLogs.forEach(log => { %>
+                                        <tr>
+                                            <td><small><%= new Date(log.timestamp).toLocaleString('id-ID') %></small></td>
+                                            <td><span class="badge bg-info"><%= log.action_type %></span></td>
+                                            <td><%= log.user_tag || log.user_id %></td>
+                                            <td><small><%= log.details || '-' %></small></td>
+                                        </tr>
+                                    <% }); %>
+                                <% } else { %>
+                                    <tr><td colspan="4" class="text-center text-muted">No recent activity</td></tr>
+                                <% } %>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- NOTIFICATIONS -->
+        <% if (activeTab === 'notifications') { %>
+            <div class="card glass-panel">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-bell me-2"></i>System Notifications
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <% if (notifications && notifications.length > 0) { %>
+                        <% notifications.forEach(notif => { %>
+                            <div class="alert alert-<%= notif.type === 'warning' ? 'warning' : 'info' %>">
+                                <strong><%= notif.title %></strong><br>
+                                <%= notif.message %>
+                            </div>
+                        <% }); %>
+                    <% } else { %>
+                        <div class="alert alert-success">All systems operational! No notifications.</div>
+                    <% } %>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- WEALTH LIMITER MANAGEMENT -->
+        <% if (activeTab === 'limiter') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-ban me-2"></i>Wealth Limiter Management (<%= limiters ? limiters.length : 0 %> active)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="limiterAlert" class="alert" style="display: none;"></div>
+                    
+                    <% if (limiters && limiters.length > 0) { %>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-end">Balance</th>
+                                        <th>Level</th>
+                                        <th>Threshold</th>
+                                        <th>Status</th>
+                                        <th>Time Remaining</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% limiters.forEach(l => { %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= l.username %></strong><br>
+                                                <small class="text-muted"><%= l.user_id %></small>
+                                            </td>
+                                            <td class="text-end"><%= (l.balance || 0).toLocaleString('id-ID') %></td>
+                                            <td>
+                                                <span class="badge bg-info">Level <%= l.level_cleared %></span>
+                                            </td>
+                                            <td><%= l.currentLevel %></td>
+                                            <td>
+                                                <% if (l.status === 'ACTIVE') { %>
+                                                    <span class="badge bg-danger">🔴 Active Penalty</span>
+                                                <% } else if (l.status === 'MERCY') { %>
+                                                    <span class="badge bg-warning text-dark">🟡 Mercy Zone</span>
+                                                <% } else if (l.status === 'SHOULD_CLEAR') { %>
+                                                    <span class="badge bg-success">✅ Should Clear</span>
+                                                <% } else { %>
+                                                    <span class="badge bg-secondary">⚪ Normal</span>
+                                                <% } %>
+                                            </td>
+                                            <td>
+                                                <% if (l.timeRemaining !== null) { %>
+                                                    <%= l.timeRemaining %> minutes
+                                                <% } else { %>
+                                                    -
+                                                <% } %>
+                                            </td>
+                                            <td class="text-end">
+                                                <div class="btn-group btn-group-sm">
+                                                    <button class="btn btn-outline-warning" onclick="resetLimiter('<%= l.user_id %>', '<%= l.username %>')" title="Reset to Level 0">
+                                                        <i class="fas fa-undo"></i> Reset
+                                                    </button>
+                                                    <button class="btn btn-outline-info" onclick="clearTimer('<%= l.user_id %>', '<%= l.username %>')" title="Clear Timer">
+                                                        <i class="fas fa-clock"></i> Clear Timer
+                                                    </button>
+                                                    <button class="btn btn-outline-primary" onclick="setLimiterLevel('<%= l.user_id %>', '<%= l.username %>', <%= l.level_cleared %>)" title="Set Level">
+                                                        <i class="fas fa-edit"></i> Set Level
+                                                    </button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div class="alert alert-info text-center">No active limiters found.</div>
+                    <% } %>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- MAX BET MANAGEMENT -->
+        <% if (activeTab === 'maxbet') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-dollar-sign me-2"></i>Max Bet Management (<%= maxBets ? maxBets.length : 0 %> custom)
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="maxbetAlert" class="alert" style="display: none;"></div>
+
+                    <h5 class="mb-3">Set Custom Max Bet</h5>
+                    <form id="setMaxBetForm" class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label class="form-label">User ID</label>
+                            <input type="text" id="maxbetUserId" name="userId" class="form-control" placeholder="User ID Discord" required>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Max Bet Amount</label>
+                            <input type="number" id="maxbetAmount" name="amount" class="form-control" placeholder="e.g., 5000000" min="1" max="100000000" required>
+                            <small class="text-muted">Range: 1 - 100 Juta</small>
+                        </div>
+                        <div class="col-md-2 d-flex align-items-end">
+                            <button type="submit" class="btn btn-success w-100">
+                                <i class="fas fa-plus-circle me-2"></i>Set
+                            </button>
+                        </div>
+                    </form>
+
+                    <hr class="border-secondary my-4">
+
+                    <h5 class="mb-3">Custom Max Bets (<%= maxBets ? maxBets.length : 0 %>)</h5>
+                    <% if (maxBets && maxBets.length > 0) { %>
+                        <div class="table-responsive">
+                            <table class="table table-dark table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th>User</th>
+                                        <th class="text-end">Custom Max Bet</th>
+                                        <th>Set By</th>
+                                        <th>Set At</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <% maxBets.forEach(mb => { %>
+                                        <tr>
+                                            <td>
+                                                <strong><%= mb.username %></strong><br>
+                                                <small class="text-muted"><%= mb.user_id %></small>
+                                            </td>
+                                            <td class="text-end">
+                                                <strong>Rp <%= mb.max_bet_amount.toLocaleString('id-ID') %></strong>
+                                            </td>
+                                            <td><%= mb.setByName %></td>
+                                            <td><%= new Date(mb.set_at).toLocaleString('id-ID') %></td>
+                                            <td class="text-end">
+                                                <button class="btn btn-sm btn-outline-warning" onclick="editMaxBet('<%= mb.user_id %>', '<%= mb.username %>', <%= mb.max_bet_amount %>)">
+                                                    <i class="fas fa-edit me-1"></i>Edit
+                                                </button>
+                                                <button class="btn btn-sm btn-outline-danger" onclick="resetMaxBet('<%= mb.user_id %>', '<%= mb.username %>')">
+                                                    <i class="fas fa-undo me-1"></i>Reset
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    <% }); %>
+                                </tbody>
+                            </table>
+                        </div>
+                    <% } else { %>
+                        <div class="alert alert-info text-center">No custom max bets found. All users use global max bet (10 Juta).</div>
+                    <% } %>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- SAY MESSAGE -->
+        <% if (activeTab === 'say') { %>
+            <div class="card glass-panel mb-4">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-comment-dots me-2"></i>Kirim Pesan Atas Nama Bot
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div id="sayAlert" class="alert" style="display: none;"></div>
+                    
+                    <form id="sayForm">
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-hashtag me-2"></i>Channel ID
+                            </label>
+                            <input type="text" id="channelId" name="channelId" class="form-control" 
+                                placeholder="Masukkan Channel ID (contoh: 123456789012345678)" required>
+                            <small class="text-muted">Cara mendapatkan Channel ID: Klik kanan channel → Copy ID (Developer Mode harus aktif)</small>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">
+                                <i class="fas fa-toggle-on me-2"></i>Mode Pengiriman
+                            </label>
+                            <div class="d-flex gap-3">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="messageMode" id="modeChat" value="chat" checked onchange="toggleMessageMode()">
+                                    <label class="form-check-label" for="modeChat">
+                                        <i class="fas fa-comment me-1"></i>Chat (Plain Text)
+                                    </label>
+                                </div>
+                                <div class="form-check">
+                                    <input class="form-check-input" type="radio" name="messageMode" id="modeEmbed" value="embed" onchange="toggleMessageMode()">
+                                    <label class="form-check-label" for="modeEmbed">
+                                        <i class="fas fa-code me-1"></i>Embed
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- CHAT MODE -->
+                        <div id="chatMode">
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-comment me-2"></i>Pesan
+                                </label>
+                                <textarea id="message" name="message" class="form-control" rows="5" 
+                                    placeholder="Tulis pesan yang ingin dikirim atas nama bot..."></textarea>
+                                <small class="text-muted">Pesan akan dikirim langsung tanpa embed atau format khusus</small>
+                            </div>
+                        </div>
+                        
+                        <!-- EMBED MODE -->
+                        <div id="embedMode" style="display: none;">
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-heading me-2"></i>Title
+                                </label>
+                                <input type="text" id="embedTitle" name="embedTitle" class="form-control" 
+                                    placeholder="Judul embed (optional)">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-align-left me-2"></i>Description
+                                </label>
+                                <textarea id="embedDescription" name="embedDescription" class="form-control" rows="4" 
+                                    placeholder="Deskripsi embed (optional)"></textarea>
+                            </div>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        <i class="fas fa-palette me-2"></i>Color (Hex)
+                                    </label>
+                                    <input type="text" id="embedColor" name="embedColor" class="form-control" 
+                                        placeholder="#FF5733" maxlength="7">
+                                    <small class="text-muted">Format: #RRGGBB (optional)</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">
+                                        <i class="fas fa-image me-2"></i>Thumbnail URL
+                                    </label>
+                                    <input type="url" id="embedThumbnail" name="embedThumbnail" class="form-control" 
+                                        placeholder="https://example.com/image.png">
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-image me-2"></i>Image URL
+                                </label>
+                                <input type="url" id="embedImage" name="embedImage" class="form-control" 
+                                    placeholder="https://example.com/image.png">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-tag me-2"></i>Footer Text
+                                </label>
+                                <input type="text" id="embedFooter" name="embedFooter" class="form-control" 
+                                    placeholder="Footer text (optional)">
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">
+                                    <i class="fas fa-link me-2"></i>URL (untuk title)
+                                </label>
+                                <input type="url" id="embedUrl" name="embedUrl" class="form-control" 
+                                    placeholder="https://example.com (optional)">
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-paper-plane me-2"></i>Kirim Pesan
+                        </button>
+                    </form>
+                </div>
+            </div>
+
+            <div class="card glass-panel">
+                <div class="card-header">
+                    <h6 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>Informasi
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="mb-0">
+                        <li><strong>Mode Chat:</strong> Kirim pesan plain text biasa</li>
+                        <li><strong>Mode Embed:</strong> Kirim pesan dalam format embed Discord yang lebih menarik</li>
+                        <li>Fitur ini memungkinkan admin mengirim pesan atas nama bot ke channel tertentu</li>
+                        <li>Pastikan bot memiliki akses ke channel yang dituju</li>
+                        <li>Channel ID bisa didapatkan dengan mengaktifkan Developer Mode di Discord</li>
+                        <li>Klik kanan pada channel → Copy ID untuk mendapatkan Channel ID</li>
+                        <li>Untuk Embed: Minimal Title atau Description harus diisi</li>
+                        <li>Color format: #RRGGBB (contoh: #FF5733 untuk merah)</li>
+                    </ul>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- GAME STATISTICS -->
+        <% if (activeTab === 'games') { %>
+            <div class="alert alert-info">
+                <strong>📊 Game Statistics</strong><br>
+                Game statistics tracking requires implementation of tracking tables. This feature will be available soon!
+            </div>
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-primary text-white">
+                            <h6 class="mb-0">💸 Active Loans</h6>
+                        </div>
+                        <div class="card-body text-center">
+                            <h3><%= activeLoans || 0 %></h3>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-success text-white">
+                            <h6 class="mb-0">🏦 Bank Users</h6>
+                        </div>
+                        <div class="card-body text-center">
+                            <h3><%= activeBankUsers || 0 %></h3>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
+
+        <!-- SYSTEM HEALTH -->
+        <% if (activeTab === 'system') { %>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <div class="card glass-panel border-primary">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">⏱️ Uptime</h6>
+                            <h4 class="text-primary mb-0"><%= uptime || 'N/A' %></h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card glass-panel border-success">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">💾 Database Size</h6>
+                            <h4 class="text-success mb-0"><%= dbSize || '0' %> MB</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="card glass-panel border-info">
+                        <div class="card-body text-center">
+                            <h6 class="text-muted mb-2">🏠 Guilds</h6>
+                            <h4 class="text-info mb-0"><%= guildCount || 0 %></h4>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="row g-3 mt-3">
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0">📊 System Info</h6>
+                        </div>
+                        <div class="card-body">
+                            <p class="mb-2"><strong>Node Version:</strong> <%= nodeVersion || 'N/A' %></p>
+                            <p class="mb-2"><strong>Platform:</strong> <%= platform || 'N/A' %></p>
+                            <p class="mb-0"><strong>Total Users:</strong> <%= totalUsers || 0 %></p>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card glass-panel">
+                        <div class="card-header bg-secondary text-white">
+                            <h6 class="mb-0">🔧 Quick Actions</h6>
+                        </div>
+                        <div class="card-body">
+                            <a href="/economy" class="btn btn-sm btn-warning w-100 mb-2">💰 View Economy</a>
+                            <a href="/users" class="btn btn-sm btn-info w-100 mb-2">👤 Search Users</a>
+                            <a href="/moderation" class="btn btn-sm btn-danger w-100">🛡️ Moderation</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        <% } %>
     </div>
 
     <div class="modal fade" id="timeModal" tabindex="-1">
@@ -222,14 +1776,21 @@
                 const diff = expires - now;
 
                 if (diff <= 0) {
-                    el.innerHTML = "EXPIRED";
-                    el.className = "countdown text-danger";
+                    el.innerHTML = '<i class="fas fa-exclamation-circle me-1"></i>EXPIRED';
+                    el.className = "countdown text-danger fw-bold";
                 } else {
                     const d = Math.floor(diff / (1000 * 60 * 60 * 24));
                     const h = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
                     const m = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
                     const s = Math.floor((diff % (1000 * 60)) / 1000);
-                    el.innerHTML = `${d}h ${h}j ${m}m ${s}d`;
+                    
+                    let timeStr = '';
+                    if (d > 0) timeStr += `${d}d `;
+                    if (h > 0) timeStr += `${h}h `;
+                    if (m > 0) timeStr += `${m}m `;
+                    timeStr += `${s}s`;
+                    
+                    el.innerHTML = `<i class="fas fa-clock me-1"></i>${timeStr.trim()}`;
                 }
             });
         }, 1000);
@@ -240,7 +1801,628 @@
             document.getElementById('modalRoleName').innerText = name;
             new bootstrap.Modal(document.getElementById('timeModal')).show();
         }
+
+        // Edit User Modal
+        function openEditModal(userId, username, balance, penalty) {
+            document.getElementById('editUserId').value = userId;
+            document.getElementById('setBalanceUserId').value = userId;
+            document.getElementById('deleteWalletUserId').value = userId;
+            document.getElementById('penaltyUserId').value = userId;
+            document.getElementById('editUsername').innerText = username;
+            document.getElementById('currentBalanceDisplay').value = balance.toLocaleString('id-ID');
+            document.getElementById('setBalanceAmount').value = balance;
+            document.getElementById('editPenalty').value = penalty || 0;
+            new bootstrap.Modal(document.getElementById('editUserModal')).show();
+        }
+        
+        // Set Balance Form Handler
+        document.addEventListener('DOMContentLoaded', () => {
+            const setBalanceForm = document.getElementById('setBalanceForm');
+            if (setBalanceForm) {
+                setBalanceForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const userId = document.getElementById('setBalanceUserId').value;
+                    const amount = document.getElementById('setBalanceAmount').value;
+                    
+                    if (!userId || !amount) {
+                        alert('User ID dan Amount harus diisi!');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/set-user-balance', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify({ userId, amount: parseInt(amount) })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            alert('✅ ' + data.message);
+                            location.reload();
+                        } else {
+                            alert('❌ ' + (data.error || 'Gagal mengupdate saldo!'));
+                        }
+                    } catch (error) {
+                        alert('❌ Error: ' + error.message);
+                    }
+                });
+            }
+        });
+        
+        // Delete Wallet Function
+        function deleteWallet(userId, username) {
+            if (confirm(`Yakin ingin menghapus dompet ${username} (${userId})?`)) {
+                fetch('/api/delete-user-wallet', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ userId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + (data.error || 'Gagal menghapus dompet!'));
+                    }
+                })
+                .catch(error => {
+                    alert('❌ Error: ' + error.message);
+                });
+            }
+        }
+        
+        function deleteWalletFromModal() {
+            const userId = document.getElementById('deleteWalletUserId').value;
+            const username = document.getElementById('editUsername').innerText;
+            deleteWallet(userId, username);
+        }
+
+        // Toggle Message Mode
+        function toggleMessageMode() {
+            const mode = document.querySelector('input[name="messageMode"]:checked').value;
+            const chatMode = document.getElementById('chatMode');
+            const embedMode = document.getElementById('embedMode');
+            const messageInput = document.getElementById('message');
+            
+            if (mode === 'chat') {
+                chatMode.style.display = 'block';
+                embedMode.style.display = 'none';
+                messageInput.required = true;
+            } else {
+                chatMode.style.display = 'none';
+                embedMode.style.display = 'block';
+                messageInput.required = false;
+            }
+        }
+
+        // Say Message Form Handler
+        <% if (activeTab === 'say') { %>
+        document.addEventListener('DOMContentLoaded', () => {
+            const sayForm = document.getElementById('sayForm');
+            if (!sayForm) return;
+            
+            sayForm.addEventListener('submit', async (e) => {
+                e.preventDefault();
+                
+                const channelId = document.getElementById('channelId').value.trim();
+                const mode = document.querySelector('input[name="messageMode"]:checked').value;
+                const alertDiv = document.getElementById('sayAlert');
+                const submitBtn = e.target.querySelector('button[type="submit"]');
+                
+                if (!channelId) {
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Channel ID harus diisi!';
+                    alertDiv.style.display = 'block';
+                    return;
+                }
+                
+                let payload = { channelId, mode };
+                
+                if (mode === 'chat') {
+                    const message = document.getElementById('message').value.trim();
+                    if (!message) {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Pesan harus diisi!';
+                        alertDiv.style.display = 'block';
+                        return;
+                    }
+                    payload.message = message;
+                } else {
+                    // Embed mode
+                    const embedData = {
+                        title: document.getElementById('embedTitle').value.trim(),
+                        description: document.getElementById('embedDescription').value.trim(),
+                        color: document.getElementById('embedColor').value.trim(),
+                        thumbnail: document.getElementById('embedThumbnail').value.trim(),
+                        image: document.getElementById('embedImage').value.trim(),
+                        footer: document.getElementById('embedFooter').value.trim(),
+                        url: document.getElementById('embedUrl').value.trim()
+                    };
+                    
+                    // At least title or description must be filled
+                    if (!embedData.title && !embedData.description) {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Title atau Description harus diisi!';
+                        alertDiv.style.display = 'block';
+                        return;
+                    }
+                    
+                    payload.embed = embedData;
+                }
+                
+                // Disable button
+                submitBtn.disabled = true;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Mengirim...';
+                
+                try {
+                    const response = await fetch('/api/say-message', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify(payload)
+                    });
+                    
+                    const data = await response.json();
+                    
+                    if (data.success) {
+                        alertDiv.className = 'alert alert-success';
+                        alertDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+                        alertDiv.style.display = 'block';
+                        
+                        // Reset form
+                        document.getElementById('sayForm').reset();
+                        document.getElementById('modeChat').checked = true;
+                        toggleMessageMode();
+                        
+                        // Hide alert after 3 seconds
+                        setTimeout(() => {
+                            alertDiv.style.display = 'none';
+                        }, 3000);
+                    } else {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + (data.error || 'Gagal mengirim pesan!');
+                        alertDiv.style.display = 'block';
+                    }
+                } catch (error) {
+                    alertDiv.className = 'alert alert-danger';
+                    alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Error: ' + error.message;
+                    alertDiv.style.display = 'block';
+                } finally {
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = '<i class="fas fa-paper-plane me-2"></i>Kirim Pesan';
+                }
+            });
+        });
+        <% } %>
+        
+        // Admin Management
+        <% if (activeTab === 'admins') { %>
+        document.addEventListener('DOMContentLoaded', () => {
+            const addAdminForm = document.getElementById('addAdminForm');
+            if (addAdminForm) {
+                addAdminForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const userId = document.getElementById('newAdminId').value.trim();
+                    
+                    if (!userId) {
+                        alert('User ID required!');
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/add-admin', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            alert('✅ ' + data.message);
+                            location.reload();
+                        } else {
+                            alert('❌ ' + (data.error || 'Failed to add admin'));
+                        }
+                    } catch (error) {
+                        alert('❌ Error: ' + error.message);
+                    }
+                });
+            }
+        });
+        
+        function removeAdmin(userId, username) {
+            if (confirm(`Remove ${username} (${userId}) as admin?`)) {
+                fetch('/api/remove-admin', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + (data.error || 'Failed to remove admin'));
+                    }
+                })
+                .catch(error => alert('❌ Error: ' + error.message));
+            }
+        }
+        <% } %>
+        
+        // Quick Actions
+        <% if (activeTab === 'quick') { %>
+        document.addEventListener('DOMContentLoaded', () => {
+            const bulkJailForm = document.getElementById('bulkJailForm');
+            if (bulkJailForm) {
+                bulkJailForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const userIds = document.getElementById('bulkJailIds').value.split('\n').filter(id => id.trim());
+                    const hours = document.getElementById('bulkJailHours').value;
+                    const reason = document.getElementById('bulkJailReason').value;
+                    
+                    if (userIds.length === 0) {
+                        alert('Please enter at least one User ID');
+                        return;
+                    }
+                    
+                    if (confirm(`Jail ${userIds.length} users for ${hours} hours?`)) {
+                        try {
+                            const response = await fetch('/api/bulk-jail', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userIds, hours, reason })
+                            });
+                            
+                            const data = await response.json();
+                            alert(data.success ? '✅ ' + data.message : '❌ ' + (data.error || 'Failed'));
+                            if (data.success) location.reload();
+                        } catch (error) {
+                            alert('❌ Error: ' + error.message);
+                        }
+                    }
+                });
+            }
+            
+            const bulkBalanceForm = document.getElementById('bulkBalanceForm');
+            if (bulkBalanceForm) {
+                bulkBalanceForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const userIds = document.getElementById('bulkBalanceIds').value.split('\n').filter(id => id.trim());
+                    const amount = document.getElementById('bulkBalanceAmount').value;
+                    
+                    if (userIds.length === 0) {
+                        alert('Please enter at least one User ID');
+                        return;
+                    }
+                    
+                    if (confirm(`Add ${amount} to ${userIds.length} users?`)) {
+                        try {
+                            const response = await fetch('/api/bulk-balance', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ userIds, amount })
+                            });
+                            
+                            const data = await response.json();
+                            alert(data.success ? '✅ ' + data.message : '❌ ' + (data.error || 'Failed'));
+                            if (data.success) location.reload();
+                        } catch (error) {
+                            alert('❌ Error: ' + error.message);
+                        }
+                    }
+                });
+            }
+        });
+        <% } %>
+        
+        // Event Management
+        <% if (activeTab === 'events') { %>
+        document.addEventListener('DOMContentLoaded', () => {
+            const createEventForm = document.getElementById('createEventForm');
+            if (createEventForm) {
+                createEventForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    
+                    const name = document.getElementById('eventName').value.trim();
+                    const fee = document.getElementById('eventFee').value;
+                    const initialBalance = document.getElementById('eventInitialBalance').value;
+                    const durationHours = document.getElementById('eventDuration').value;
+                    const alertDiv = document.getElementById('eventAlert');
+                    
+                    if (!name || !fee || !initialBalance || !durationHours) {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>All fields required!';
+                        alertDiv.style.display = 'block';
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/create-event', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ name, fee, initialBalance, durationHours })
+                        });
+                        
+                        const data = await response.json();
+                        
+                        if (data.success) {
+                            alertDiv.className = 'alert alert-success';
+                            alertDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+                            alertDiv.style.display = 'block';
+                            
+                            setTimeout(() => {
+                                location.reload();
+                            }, 1500);
+                        } else {
+                            alertDiv.className = 'alert alert-danger';
+                            alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + (data.error || 'Failed to create event');
+                            alertDiv.style.display = 'block';
+                        }
+                    } catch (error) {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Error: ' + error.message;
+                        alertDiv.style.display = 'block';
+                    }
+                });
+            }
+        });
+        
+        function stopEvent(eventId, eventName) {
+            if (confirm(`Stop event "${eventName}"? This will process all participants and transfer 10% of their event balance to main wallet.`)) {
+                fetch('/api/stop-event', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ eventId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + (data.error || 'Failed to stop event'));
+                    }
+                })
+                .catch(error => alert('❌ Error: ' + error.message));
+            }
+        }
+        <% } %>
     </script>
+
+    <!-- Edit User Modal -->
+    <div class="modal fade" id="editUserModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content glass-panel border-secondary">
+                <div class="modal-header border-secondary">
+                    <h5 class="modal-title text-info">✏️ Edit User</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <p class="small text-muted mb-3">User: <span id="editUsername" class="text-white fw-bold"></span></p>
+                    
+                    <form action="/api/update-user-balance" method="POST" class="mb-3">
+                        <input type="hidden" name="userId" id="editUserId">
+                        <div class="mb-3">
+                            <label class="small text-muted">Current Balance</label>
+                            <input type="text" id="currentBalanceDisplay" class="form-control bg-dark text-white mb-2" readonly>
+                            <label class="small text-muted">Adjust Balance (Difference)</label>
+                            <input type="number" name="amount" class="form-control bg-dark text-white" placeholder="Amount (positive to add, negative to subtract)" required>
+                            <small class="text-muted">Enter difference to add/subtract from current balance.</small>
+                        </div>
+                        <button type="submit" class="btn btn-primary btn-sm w-100 mb-2">Update Balance (Adjust)</button>
+                    </form>
+                    
+                    <hr class="border-secondary mb-3">
+                    
+                    <form id="setBalanceForm" class="mb-3">
+                        <input type="hidden" id="setBalanceUserId">
+                        <div class="mb-3">
+                            <label class="small text-muted">Set Balance (Absolute Value)</label>
+                            <input type="number" id="setBalanceAmount" class="form-control bg-dark text-white" placeholder="Set exact balance amount" required>
+                            <small class="text-muted">Set balance to exact value (not difference).</small>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-sm w-100 mb-2">Set Balance (Absolute)</button>
+                    </form>
+                    
+                    <hr class="border-secondary mb-3">
+                    
+                    <button type="button" class="btn btn-danger btn-sm w-100 mb-3" onclick="deleteWalletFromModal()">
+                        <i class="fas fa-trash me-2"></i>Hapus Dompet
+                    </button>
+                    
+                    <hr class="border-secondary mb-3">
+                    
+                    <form action="/api/set-penalty" method="POST">
+                        <input type="hidden" name="userId" id="penaltyUserId">
+                        <div class="mb-3">
+                            <label class="small text-muted">Luck Penalty</label>
+                            <input type="number" name="penalty" id="editPenalty" class="form-control bg-dark text-white" placeholder="Penalty value (e.g., -50)" required>
+                            <small class="text-muted">Negative = reduce luck, Positive = increase luck</small>
+                        </div>
+                        <button type="submit" class="btn btn-warning btn-sm w-100">Update Penalty</button>
+                    </form>
+                    
+                    <input type="hidden" id="deleteWalletUserId">
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Limiter & Max Bet JavaScript -->
+    <% if (activeTab === 'limiter') { %>
+    <script>
+        function resetLimiter(userId, username) {
+            if (confirm(`Reset limiter untuk ${username} ke level 0?`)) {
+                fetch('/api/limiter/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + (data.error || 'Failed to reset limiter'));
+                    }
+                })
+                .catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+
+        function clearTimer(userId, username) {
+            if (confirm(`Clear timer limiter untuk ${username}?`)) {
+                fetch('/api/limiter/clear-timer', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + (data.error || 'Failed to clear timer'));
+                    }
+                })
+                .catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+
+        function setLimiterLevel(userId, username, currentLevel) {
+            const newLevel = prompt(`Set limiter level untuk ${username}:\nCurrent: ${currentLevel}\n\nMasukkan level baru (0-5):`, currentLevel);
+            if (newLevel !== null && !isNaN(newLevel)) {
+                const level = parseInt(newLevel);
+                if (level >= 0 && level <= 5) {
+                    fetch('/api/limiter/set-level', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId, level })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('✅ ' + data.message);
+                            location.reload();
+                        } else {
+                            alert('❌ ' + (data.error || 'Failed to set level'));
+                        }
+                    })
+                    .catch(err => alert('❌ Error: ' + err.message));
+                } else {
+                    alert('❌ Level harus antara 0-5!');
+                }
+            }
+        }
+    </script>
+    <% } %>
+
+    <% if (activeTab === 'maxbet') { %>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const setMaxBetForm = document.getElementById('setMaxBetForm');
+            if (setMaxBetForm) {
+                setMaxBetForm.addEventListener('submit', async (e) => {
+                    e.preventDefault();
+                    const userId = document.getElementById('maxbetUserId').value.trim();
+                    const amount = parseInt(document.getElementById('maxbetAmount').value);
+                    const alertDiv = document.getElementById('maxbetAlert');
+                    
+                    if (!userId || !amount || amount < 1 || amount > 100000000) {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>User ID dan Amount harus valid (1-100 Juta)!';
+                        alertDiv.style.display = 'block';
+                        return;
+                    }
+                    
+                    try {
+                        const response = await fetch('/api/maxbet/set', {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId, amount })
+                        });
+                        
+                        const data = await response.json();
+                        if (data.success) {
+                            alertDiv.className = 'alert alert-success';
+                            alertDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>' + data.message;
+                            alertDiv.style.display = 'block';
+                            setMaxBetForm.reset();
+                            setTimeout(() => location.reload(), 1500);
+                        } else {
+                            alertDiv.className = 'alert alert-danger';
+                            alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>' + (data.error || 'Failed to set max bet');
+                            alertDiv.style.display = 'block';
+                        }
+                    } catch (error) {
+                        alertDiv.className = 'alert alert-danger';
+                        alertDiv.innerHTML = '<i class="fas fa-exclamation-circle me-2"></i>Error: ' + error.message;
+                        alertDiv.style.display = 'block';
+                    }
+                });
+            }
+        });
+
+        function editMaxBet(userId, username, currentAmount) {
+            const newAmount = prompt(`Edit max bet untuk ${username}:\nCurrent: Rp ${currentAmount.toLocaleString('id-ID')}\n\nMasukkan amount baru (1-100 Juta):`, currentAmount);
+            if (newAmount !== null && !isNaN(newAmount)) {
+                const amount = parseInt(newAmount);
+                if (amount >= 1 && amount <= 100000000) {
+                    fetch('/api/maxbet/set', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ userId, amount })
+                    })
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.success) {
+                            alert('✅ ' + data.message);
+                            location.reload();
+                        } else {
+                            alert('❌ ' + (data.error || 'Failed to edit max bet'));
+                        }
+                    })
+                    .catch(err => alert('❌ Error: ' + err.message));
+                } else {
+                    alert('❌ Amount harus antara 1-100 Juta!');
+                }
+            }
+        }
+
+        function resetMaxBet(userId, username) {
+            if (confirm(`Reset max bet untuk ${username} ke global (10 Juta)?`)) {
+                fetch('/api/maxbet/reset', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId })
+                })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('✅ ' + data.message);
+                        location.reload();
+                    } else {
+                        alert('❌ ' + (data.error || 'Failed to reset max bet'));
+                    }
+                })
+                .catch(err => alert('❌ Error: ' + err.message));
+            }
+        }
+    </script>
+    <% } %>
 
 </body>
 

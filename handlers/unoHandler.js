@@ -230,16 +230,22 @@ module.exports = {
         if (interaction.customId === 'uno_draw') {
             if (userId !== currentPlayer) return interaction.reply({ content: '❌ Bukan giliranmu!', flags: [MessageFlags.Ephemeral] });
 
-            const card = game.deck.pop();
+            // Thread-safe deck access: check and reshuffle if needed
+            let card = game.deck.pop();
             if (!card) {
-                // Reshuffle discard (except top)
-                const top = game.discardPile.pop();
-                game.deck = shuffle(game.discardPile);
-                game.discardPile = [top];
-                // Try draw again
-                const retry = game.deck.pop();
-                if (retry) game.hands[userId].push(retry);
-            } else {
+                // Reshuffle discard (except top) - prevent race condition
+                if (game.discardPile.length > 1) {
+                    const top = game.discardPile.pop();
+                    game.deck = shuffle([...game.discardPile]); // Copy array to prevent mutation issues
+                    game.discardPile = [top];
+                    card = game.deck.pop();
+                } else {
+                    // Edge case: no cards to reshuffle, game might be stuck
+                    return interaction.reply({ content: '❌ Deck habis! Game mungkin error.', flags: [MessageFlags.Ephemeral] });
+                }
+            }
+            
+            if (card) {
                 game.hands[userId].push(card);
             }
 
@@ -263,15 +269,20 @@ module.exports = {
 
             // Validate Move
             let isValid = false;
-            if (card.color === 'wild') isValid = true;
-            else if (card.color === topCard.color || card.type === topCard.type) isValid = true;
-            else if (topCard.color === 'wild') isValid = true; // Assuming wild color was set? Simplified: Wild matches anything for now, or we need to track "declared color".
+            const topCardColor = topCard.color === 'wild' ? topCard.declaredColor || COLORS[0] : topCard.color; // Get declared color if wild
+            
+            if (card.color === 'wild') {
+                // Wild cards can always be played
+                isValid = true;
+            } else if (card.color === topCardColor || card.type === topCard.type) {
+                // Match color (including declared wild color) or type
+                isValid = true;
+            }
 
-            // For simplified version: If top is Wild, any color is valid. 
-            // Ideally we ask user to pick color for Wild, but for V1 let's make Wild adapt to next player's valid move or just be "Wild" color.
-            // BETTER: If player plays Wild, we need to prompt for color.
-
-            if (!isValid) return interaction.reply({ content: `❌ Kartu tidak valid! Harus sama warna (${topCard.color}) atau simbol (${topCard.type}).`, flags: [MessageFlags.Ephemeral] });
+            if (!isValid) {
+                const colorDisplay = topCard.color === 'wild' ? (topCard.declaredColor || 'Wild') : topCard.color;
+                return interaction.reply({ content: `❌ Kartu tidak valid! Harus sama warna (${colorDisplay}) atau simbol (${topCard.type}).`, flags: [MessageFlags.Ephemeral] });
+            }
 
             // Remove card from hand
             hand.splice(cardIndex, 1);
@@ -314,12 +325,12 @@ module.exports = {
                 skipTurn = true;
             }
 
-            // If Wild, we should technically ask for color. 
-            // For simplicity V1: Randomly pick a color or just leave it as 'wild' which allows next player to play anything (or force them to match 'wild' which is wrong).
-            // Let's auto-set color to Red for now to prevent stuck, or random.
+            // If Wild, set declared color for next player
             if (card.color === 'wild') {
-                card.color = COLORS[Math.floor(Math.random() * COLORS.length)]; // Random color for next player to match
-                await interaction.reply({ content: `🌈 Wild Card! Warna berubah menjadi **${card.color}**`, flags: [MessageFlags.Ephemeral] });
+                // Randomly pick a color for next player to match (improved: store as declaredColor)
+                const declaredColor = COLORS[Math.floor(Math.random() * COLORS.length)];
+                card.declaredColor = declaredColor; // Store declared color
+                await interaction.reply({ content: `🌈 Wild Card! Warna berubah menjadi **${declaredColor}**`, flags: [MessageFlags.Ephemeral] });
             } else {
                 await interaction.deferUpdate();
             }
