@@ -1,8 +1,23 @@
 const { Client, GatewayIntentBits, Collection } = require('discord.js');
 const fs = require('fs');
 const path = require('path');
-const { token } = require('./config.json');
 const db = require('./database.js'); // Load Database Global
+
+// Load environment variables (fallback to config.json for backward compatibility)
+try {
+    require('dotenv').config({ path: '.env' });
+} catch (e) {
+    // dotenv optional, continue without it
+}
+
+const token = process.env.BOT_TOKEN || (() => {
+    try {
+        return require('./config.json').token;
+    } catch (e) {
+        console.error('❌ [FATAL] BOT_TOKEN not found in environment or config.json!');
+        process.exit(1);
+    }
+})();
 
 // Inisialisasi Client
 const client = new Client({
@@ -69,3 +84,24 @@ try {
 } catch (err) {
     console.error('❌ Gagal menjalankan Scheduler:', err);
 }
+
+// --- GLOBAL ERROR HANDLERS ---
+process.on('uncaughtException', (error) => {
+    console.error('❌ [FATAL] Uncaught Exception:', error);
+    // Log to file or monitoring service in production
+    if (process.env.NODE_ENV === 'production') {
+        // TODO: Send to monitoring service (Sentry, etc.)
+    }
+    // Don't exit in production, let PM2 handle restart
+    if (process.env.NODE_ENV !== 'production') {
+        process.exit(1);
+    }
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ [FATAL] Unhandled Rejection at:', promise, 'reason:', reason);
+    // Log to file or monitoring service in production
+    if (process.env.NODE_ENV === 'production') {
+        // TODO: Send to monitoring service (Sentry, etc.)
+    }
+});

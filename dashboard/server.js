@@ -2,20 +2,72 @@ const express = require('express');
 const path = require('path');
 const bodyParser = require('body-parser');
 const session = require('express-session');
+const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
 const fs = require('fs');
+const crypto = require('crypto');
 const db = require('../database.js');
 const { TIKET_CONFIG } = require('../utils/helpers.js');
-const config = require('../config.json');
+
+// Load environment variables (fallback to config.json for backward compatibility)
+try {
+    require('dotenv').config({ path: '.env' });
+} catch (e) {
+    // dotenv optional, continue without it
+}
+const config = (() => {
+    try {
+        return require('../config.json');
+    } catch (e) {
+        return {};
+    }
+})();
 
 const app = express();
-const PORT = 2560;
+const PORT = process.env.PORT || 2560;
+const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || config.adminPassword || 'changeme';
+const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+
+// Security Headers
+app.use(helmet({
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net", "https://cdnjs.cloudflare.com"],
+            scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.jsdelivr.net"],
+            imgSrc: ["'self'", "data:", "https:"],
+            fontSrc: ["'self'", "https://cdnjs.cloudflare.com"]
+        }
+    }
+}));
+
+// Rate Limiting
+const limiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    message: 'Too many requests from this IP, please try again later.'
+});
+
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 5, // 5 login attempts per 15 minutes
+    message: 'Too many login attempts, please try again later.',
+    skipSuccessfulRequests: true
+});
+
+app.use('/api/', limiter);
 
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
-    secret: 'alice_secret_key',
+    secret: SESSION_SECRET,
     resave: false,
-    saveUninitialized: true
+    saveUninitialized: false, // Changed to false for security
+    cookie: {
+        secure: process.env.NODE_ENV === 'production', // HTTPS only in production
+        httpOnly: true, // Prevent XSS
+        maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
 }));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -43,10 +95,11 @@ function startDashboard(client) {
         res.render('login', { error: null });
     });
 
-    app.post('/login', (req, res) => {
+    app.post('/login', loginLimiter, (req, res) => {
         const { password } = req.body;
-        if (password === config.adminPassword) {
+        if (password === ADMIN_PASSWORD) {
             req.session.loggedin = true;
+            req.session.userId = req.ip; // Track login IP
             res.redirect('/admin');
         } else {
             res.render('login', { error: 'Password Salah!' });
