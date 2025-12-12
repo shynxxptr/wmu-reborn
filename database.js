@@ -150,6 +150,33 @@ try { db.prepare('ALTER TABLE user_economy ADD COLUMN luck_expiration INTEGER DE
 try { db.prepare('ALTER TABLE user_economy ADD COLUMN daily_transfer_total INTEGER DEFAULT 0').run(); } catch (e) { }
 try { db.prepare('ALTER TABLE user_economy ADD COLUMN last_transfer_day TEXT DEFAULT NULL').run(); } catch (e) { }
 
+// 9. User Achievements
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_achievements (
+        user_id TEXT NOT NULL,
+        achievement_id TEXT NOT NULL,
+        unlocked_at INTEGER NOT NULL,
+        claimed INTEGER DEFAULT 0,
+        PRIMARY KEY (user_id, achievement_id)
+    )
+`);
+
+// 10. User Stats (for achievement tracking)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_stats (
+        user_id TEXT PRIMARY KEY,
+        total_work INTEGER DEFAULT 0,
+        total_gambles INTEGER DEFAULT 0,
+        total_wins INTEGER DEFAULT 0,
+        total_food_bought INTEGER DEFAULT 0,
+        total_smokes INTEGER DEFAULT 0,
+        total_alcohol INTEGER DEFAULT 0,
+        unique_transfers TEXT DEFAULT '[]',
+        consecutive_wins INTEGER DEFAULT 0,
+        highest_balance INTEGER DEFAULT 0
+    )
+`);
+
 // --- INISIALISASI DATA ---
 const { TIKET_CONFIG } = require('./utils/helpers.js');
 try {
