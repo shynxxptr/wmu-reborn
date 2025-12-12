@@ -32,9 +32,17 @@ git add .
 git commit -m "Merge remote changes"
 ```
 
-### **Option 2: Rebase (Jika yakin local changes tidak penting)**
+### **Option 2: Rebase (⚠️ TIDAK DISARANKAN untuk Production)**
 
-**Hati-hati: bisa overwrite local changes!**
+**⚠️ WARNING: Rebase berbahaya untuk production!**
+- Bisa overwrite local changes
+- Rewrite history (sulit rollback)
+- Risk data loss tinggi
+
+**Hanya pakai jika:**
+- Local changes benar-benar tidak penting
+- Yakin tidak ada database/config changes
+- Development branch, bukan production
 
 ```bash
 # Backup dulu!
@@ -43,12 +51,14 @@ cp custom_roles.db custom_roles.db.backup
 # Stash local changes (jika ada)
 git stash
 
-# Pull dengan rebase
+# Pull dengan rebase (RISKY!)
 git pull --rebase
 
 # Apply stashed changes (jika ada)
 git stash pop
 ```
+
+**⚠️ REKOMENDASI: Jangan pakai rebase di production!**
 
 ### **Option 3: Force Pull (HAPUS local changes, pakai remote)**
 
@@ -68,9 +78,20 @@ git reset --hard origin/master
 
 ---
 
+## ⚠️ **PENTING: JANGAN PAKAI REBASE di Production!**
+
+**Rebase TIDAK AMAN untuk production karena:**
+- Bisa overwrite local changes (termasuk database modifications)
+- Rewrite history (sulit rollback)
+- Risk data loss tinggi
+
+**PAKAI MERGE untuk production** (lebih aman, preserve semua data)
+
+---
+
 ## 🛡️ **REKOMENDASI UNTUK PRODUCTION**
 
-### **Step-by-Step Aman:**
+### **Step-by-Step Aman (PAKAI MERGE):**
 
 1. **Backup Database DULU**:
 ```bash

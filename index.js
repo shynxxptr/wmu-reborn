@@ -10,14 +10,22 @@ try {
     // dotenv optional, continue without it
 }
 
-const token = process.env.BOT_TOKEN || (() => {
+// Get token from env or config.json
+let token = process.env.BOT_TOKEN;
+if (!token) {
     try {
-        return require('./config.json').token;
+        const config = require('./config.json');
+        token = config.token;
     } catch (e) {
-        console.error('❌ [FATAL] BOT_TOKEN not found in environment or config.json!');
-        process.exit(1);
+        // config.json might not exist, that's ok if env var is set
     }
-})();
+}
+
+if (!token) {
+    console.error('❌ [FATAL] BOT_TOKEN not found in environment or config.json!');
+    console.error('   Please set BOT_TOKEN in .env file or config.json');
+    process.exit(1);
+}
 
 // Inisialisasi Client
 const client = new Client({

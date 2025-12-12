@@ -24,9 +24,9 @@ const config = (() => {
 })();
 
 const app = express();
-const PORT = process.env.PORT || 2560;
+const PORT = process.env.PORT || config.port || config.PORT || 2560;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || config.adminPassword || 'changeme';
-const SESSION_SECRET = process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex');
+const SESSION_SECRET = process.env.SESSION_SECRET || config.sessionSecret || crypto.randomBytes(32).toString('hex');
 
 // Security Headers
 app.use(helmet({

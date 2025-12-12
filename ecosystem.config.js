@@ -7,7 +7,14 @@ module.exports = {
         watch: false,
         max_memory_restart: '1G',
         env: {
-            NODE_ENV: 'production'
+            NODE_ENV: 'production',
+            PORT: process.env.PORT || 2560,
+            BOT_TOKEN: process.env.BOT_TOKEN,
+            ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
+            SESSION_SECRET: process.env.SESSION_SECRET,
+            AUTO_BACKUP_ENABLED: process.env.AUTO_BACKUP_ENABLED || 'true',
+            BACKUP_INTERVAL_HOURS: process.env.BACKUP_INTERVAL_HOURS || '24',
+            S3_BACKUP_BUCKET: process.env.S3_BACKUP_BUCKET
         },
         error_file: './logs/pm2-error.log',
         out_file: './logs/pm2-out.log',

@@ -4,5 +4,7 @@
     "logChannelId": "YOUR_LOG_CHANNEL_ID_HERE",
     "requestChannelId": "YOUR_REQUEST_CHANNEL_ID_HERE",
     "stockChannelId": "YOUR_STOCK_CHANNEL_ID_HERE",
-    "adminPassword": "YOUR_ADMIN_PASSWORD_HERE"
+    "adminPassword": "YOUR_ADMIN_PASSWORD_HERE",
+    "port": 2560,
+    "sessionSecret": "GENERATE_RANDOM_SECRET_HERE"
 }
