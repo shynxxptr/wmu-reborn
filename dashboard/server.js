@@ -61,14 +61,15 @@ app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 app.use(session({
     secret: SESSION_SECRET,
-    resave: false,
-    saveUninitialized: false, // Changed to false for security
+    resave: true, // Set to true to ensure session is saved
+    saveUninitialized: true, // Set to true to save new sessions immediately
     cookie: {
         secure: false, // Set to false if not using HTTPS (set to true only with HTTPS)
         httpOnly: true, // Prevent XSS
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: 'lax' // CSRF protection
-    }
+    },
+    name: 'admin.sid' // Custom session name
 }));
 app.set('view engine', 'ejs');
 app.set('views', path.join(__dirname, 'views'));
@@ -125,16 +126,11 @@ function startDashboard(client) {
             req.session.loggedin = true;
             req.session.userId = req.ip; // Track login IP
             
-            // Try to save session, but don't wait too long
-            req.session.save((err) => {
-                if (err) {
-                    console.error('[LOGIN] Session save error:', err);
-                    return res.status(500).render('login', { error: 'Error saving session. Please try again.' });
-                }
-                console.log('[LOGIN] Success - Redirecting to /admin');
-                // Use 302 redirect explicitly
-                res.status(302).redirect('/admin');
-            });
+            console.log('[LOGIN] Success - Setting session and redirecting immediately');
+            
+            // Redirect immediately - session will auto-save with resave: true
+            // Don't wait for callback to avoid hanging
+            res.redirect('/admin');
         } else {
             console.log('[LOGIN] Failed - Wrong password');
             res.status(401).render('login', { error: 'Password Salah!' });

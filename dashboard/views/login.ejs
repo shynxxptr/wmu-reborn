@@ -257,6 +257,15 @@
                 loginButton.disabled = true;
                 loginButton.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>Memproses...';
                 
+                // Set timeout to re-enable button if stuck (10 seconds)
+                setTimeout(() => {
+                    if (loginButton.disabled) {
+                        loginButton.disabled = false;
+                        loginButton.innerHTML = '<i class="fas fa-sign-in-alt me-2"></i>Masuk';
+                        alert('Login timeout. Silakan coba lagi atau cek koneksi server.');
+                    }
+                }, 10000);
+                
                 // Let form submit normally - don't prevent default
                 // This is more reliable than fetch for form submissions
                 return true;
