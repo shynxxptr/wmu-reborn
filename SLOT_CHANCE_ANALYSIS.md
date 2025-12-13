@@ -139,3 +139,4 @@ High Symbols:
 - Line untuk !slots: ~270-370
 - Line untuk !bigslot: ~600-1020
 
+

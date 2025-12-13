@@ -4,6 +4,8 @@ const bodyParser = require('body-parser');
 const session = require('express-session');
 const rateLimit = require('express-rate-limit');
 const helmet = require('helmet');
+const https = require('https');
+const http = require('http');
 const fs = require('fs');
 const crypto = require('crypto');
 const db = require('../database.js');
@@ -24,9 +26,14 @@ const config = (() => {
 })();
 
 const app = express();
-const PORT = process.env.PORT || config.port || config.PORT || 3000;
+const PORT = process.env.PORT || config.port || config.PORT || 80;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || config.adminPassword || 'changeme';
 const SESSION_SECRET = process.env.SESSION_SECRET || config.sessionSecret || crypto.randomBytes(32).toString('hex');
+
+// SSL Configuration
+const SSL_ENABLED = process.env.SSL_ENABLED === 'true' || config.ssl?.enabled === true;
+const SSL_CERT = process.env.SSL_CERT || config.ssl?.cert;
+const SSL_KEY = process.env.SSL_KEY || config.ssl?.key;
 
 // Security Headers (support both HTTP and HTTPS)
 app.use(helmet({
@@ -1180,11 +1187,65 @@ function startDashboard(client) {
         }
     });
 
-    app.listen(PORT, '0.0.0.0', () => {
-        console.log(`🌐 [WEB ADMIN] Online di http://localhost:${PORT}`);
-        console.log(`🌐 [WEB ADMIN] Juga bisa diakses via IP: http://YOUR_IP:${PORT}`);
-        console.log(`🔒 [INFO] Server support HTTP dan HTTPS (jika dikonfigurasi dengan reverse proxy/SSL)`);
-    });
+    // Start server with HTTPS if SSL enabled, otherwise HTTP
+    if (SSL_ENABLED && SSL_CERT && SSL_KEY) {
+        // Check if certificate files exist
+        if (!fs.existsSync(SSL_CERT)) {
+            console.error(`❌ [ERROR] SSL Certificate file not found: ${SSL_CERT}`);
+            console.log(`⚠️  [WARN] Falling back to HTTP on port ${PORT}`);
+            startHttpServer();
+            return;
+        }
+        if (!fs.existsSync(SSL_KEY)) {
+            console.error(`❌ [ERROR] SSL Key file not found: ${SSL_KEY}`);
+            console.log(`⚠️  [WARN] Falling back to HTTP on port ${PORT}`);
+            startHttpServer();
+            return;
+        }
+
+        try {
+            // Load SSL certificate and key
+            const sslOptions = {
+                cert: fs.readFileSync(SSL_CERT, 'utf8'),
+                key: fs.readFileSync(SSL_KEY, 'utf8')
+            };
+
+            // Create HTTPS server
+            const httpsServer = https.createServer(sslOptions, app);
+            httpsServer.listen(PORT, '0.0.0.0', () => {
+                console.log(`🔒 [HTTPS] Server online di https://localhost:${PORT}`);
+                console.log(`🔒 [HTTPS] Juga bisa diakses via IP: https://YOUR_IP:${PORT}`);
+                console.log(`✅ [SSL] SSL Certificate loaded: ${SSL_CERT}`);
+            });
+
+            // Also start HTTP server on port 80 to redirect to HTTPS (if HTTPS is on 443)
+            if (PORT === 443) {
+                const httpApp = express();
+                httpApp.use((req, res) => {
+                    res.redirect(301, `https://${req.headers.host}${req.url}`);
+                });
+                http.createServer(httpApp).listen(80, '0.0.0.0', () => {
+                    console.log(`🔄 [HTTP] Redirect server running on port 80 (redirects to HTTPS)`);
+                });
+            }
+        } catch (error) {
+            console.error(`❌ [ERROR] Failed to load SSL certificate:`, error.message);
+            console.log(`⚠️  [WARN] Falling back to HTTP on port ${PORT}`);
+            startHttpServer();
+        }
+    } else {
+        startHttpServer();
+    }
+
+    function startHttpServer() {
+        app.listen(PORT, '0.0.0.0', () => {
+            console.log(`🌐 [HTTP] Server online di http://localhost:${PORT}`);
+            console.log(`🌐 [HTTP] Juga bisa diakses via IP: http://YOUR_IP:${PORT}`);
+            if (!SSL_ENABLED) {
+                console.log(`ℹ️  [INFO] SSL tidak diaktifkan. Untuk enable HTTPS, setup SSL certificate (lihat SSL_SETUP_GUIDE.md)`);
+            }
+        });
+    }
 }
 
 module.exports = startDashboard;

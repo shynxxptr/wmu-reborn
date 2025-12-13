@@ -5,6 +5,11 @@
     "requestChannelId": "YOUR_REQUEST_CHANNEL_ID_HERE",
     "stockChannelId": "YOUR_STOCK_CHANNEL_ID_HERE",
     "adminPassword": "YOUR_ADMIN_PASSWORD_HERE",
-    "port": 3000,
-    "sessionSecret": "GENERATE_RANDOM_SECRET_HERE"
+    "port": 80,
+    "sessionSecret": "GENERATE_RANDOM_SECRET_HERE",
+    "ssl": {
+        "enabled": false,
+        "cert": "/etc/letsencrypt/live/yourdomain.com/fullchain.pem",
+        "key": "/etc/letsencrypt/live/yourdomain.com/privkey.pem"
+    }
 }

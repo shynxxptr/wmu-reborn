@@ -779,7 +779,7 @@ module.exports = {
                     },
                     {
                         name: '🌐 **Web Dashboard**',
-                        value: 'Akses dashboard admin di: `http://47.129.58.40:3000/admin`\n' +
+                        value: 'Akses dashboard admin di: `http://47.129.58.40:80/admin`\n' +
                                '**Fitur dashboard:**\n' +
                                '• Economy Management\n' +
                                '• User Management\n' +

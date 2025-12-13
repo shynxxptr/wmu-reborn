@@ -83,3 +83,4 @@ Dengan power 0.7:
 - File: `handlers/crashHandler.js`
 - Line: ~55-85 (crash point calculation)
 
+
