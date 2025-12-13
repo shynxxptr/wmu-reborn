@@ -23,7 +23,7 @@ const calculateNextMultiplier = (currentMult, safeRemaining, totalRemaining) => 
         return currentMult; // Return current multiplier if invalid
     }
     const rawOdds = totalRemaining / safeRemaining;
-    const houseEdge = 0.95;
+    const houseEdge = 0.90; // 10% house edge - CHALLENGING BUT FUN (increased from 5%)
     return currentMult * rawOdds * houseEdge;
 };
 

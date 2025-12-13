@@ -99,10 +99,10 @@ module.exports = {
         const playerScore = calculateHand(playerHand);
         // Dealer score hidden for now
 
-        // Check Instant Blackjack
+        // Check Instant Blackjack - CHALLENGING BUT FUN
         if (playerScore === 21) {
-            // Payout 3:2
-            const winAmount = Math.floor(bet * 2.5); // Return bet + 1.5x
+            // Payout 6:5 (reduced from 3:2 for more challenge)
+            const winAmount = Math.floor(bet * 2.2); // Return bet + 1.2x (reduced from 1.5x)
             db.updateBalance(userId, winAmount);
             
             // Track Mission - Win Blackjack
@@ -210,8 +210,9 @@ module.exports = {
     async dealerTurn(interaction, game) {
         let dealerScore = calculateHand(game.dealerHand);
 
-        // Dealer hits on soft 17? Let's just say dealer hits until >= 17.
-        while (dealerScore < 17) {
+        // Dealer hits until >= 16 (more aggressive, CHALLENGING BUT FUN)
+        // Changed from 17 to 16 for more challenge
+        while (dealerScore < 16) {
             game.dealerHand.push(game.deck.pop());
             dealerScore = calculateHand(game.dealerHand);
         }

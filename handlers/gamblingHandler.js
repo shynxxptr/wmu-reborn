@@ -207,10 +207,10 @@ module.exports = {
             // Jackpot Check
             handleJackpot(amount, userId);
 
-            // Luck Logic
+            // Luck Logic - CHALLENGING BUT FUN
             const luck = getEffectiveLuck(userId);
-            const baseChance = 0.5;
-            const winChance = baseChance + (luck / 100); // e.g. 0.5 + 0.15 = 0.65
+            const baseChance = 0.45; // 45% base (5% house edge for challenge)
+            const winChance = baseChance + (luck / 150); // Reduced luck effect (from /100 to /150)
 
             const isWin = Math.random() < winChance;
 
@@ -313,10 +313,10 @@ module.exports = {
             // EMOJI MAKANAN KANTIN
             const items = ['☕', '🍝', '🥣', '🍹', '🍞', '🍡'];
 
-            // Luck Logic for Slots
-            // If lucky, chance to reroll bad result
+            // Luck Logic for Slots - CHALLENGING BUT FUN
+            // If lucky, chance to reroll bad result (reduced effect)
             const luck = getEffectiveLuck(userId);
-            const shouldReroll = luck > 0 && Math.random() < (luck / 100);
+            const shouldReroll = luck > 0 && Math.random() < (luck / 150); // Reduced from /100 to /150
 
             let r1 = items[Math.floor(Math.random() * items.length)];
             let r2 = items[Math.floor(Math.random() * items.length)];
@@ -359,8 +359,8 @@ module.exports = {
             await delay(1000);
 
             let winMultiplier = 0;
-            if (r1 === r2 && r2 === r3) winMultiplier = 5; // Jackpot
-            else if (r1 === r2 || r2 === r3 || r1 === r3) winMultiplier = 2; // Small Win
+            if (r1 === r2 && r2 === r3) winMultiplier = 8; // Jackpot (increased from 5)
+            else if (r1 === r2 || r2 === r3 || r1 === r3) winMultiplier = 3; // Small Win (increased from 2)
 
             const winAmount = amount * winMultiplier;
             if (winMultiplier > 0) {
@@ -416,23 +416,23 @@ module.exports = {
             const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
             missionHandler.trackMission(userId, 'play_math');
 
-            // Determine Difficulty & Multiplier
+            // Determine Difficulty & Multiplier - CHALLENGING BUT FUN
             let difficulty = 'easy';
-            let multiplier = 1.2; // 20% Profit
+            let multiplier = 1.15; // 15% Profit (reduced from 1.2)
             let timeLimit = 15000; // 15 seconds
 
             // Max bet is 10M, so adjust thresholds accordingly
             if (amount >= 5000000) { // 5M or more
                 difficulty = 'extreme';
-                multiplier = 3.0; // 200% Profit
+                multiplier = 2.5; // 150% Profit (reduced from 3.0)
                 timeLimit = 5000; // 5 seconds
             } else if (amount >= 2000000) { // 2M - 4.99M
                 difficulty = 'hard';
-                multiplier = 2.0; // 100% Profit
+                multiplier = 1.8; // 80% Profit (reduced from 2.0)
                 timeLimit = 7000; // 7 seconds
             } else if (amount >= 500000) { // 500k - 1.99M
                 difficulty = 'medium';
-                multiplier = 1.5; // 50% Profit
+                multiplier = 1.4; // 40% Profit (reduced from 1.5)
                 timeLimit = 10000; // 10 seconds
             }
 
@@ -680,15 +680,15 @@ module.exports = {
             };
 
             const getPayout = (symbol, count) => {
-                if (count < 8) return 0;
+                if (count < 10) return 0; // Increased from 8 to 10 (harder to win)
                 if (symbols.low.includes(symbol)) {
-                    if (count >= 12) return 1.5;
-                    if (count >= 10) return 1;
+                    if (count >= 14) return 1.5; // Increased from 12
+                    if (count >= 12) return 1;  // Increased from 10
                     return 0.5;
                 }
                 if (symbols.high.includes(symbol)) {
-                    if (count >= 12) return 2.5;
-                    if (count >= 10) return 1.5;
+                    if (count >= 14) return 2.5; // Increased from 12
+                    if (count >= 12) return 1.5; // Increased from 10
                     return 1;
                 }
                 return 0;
@@ -710,11 +710,11 @@ module.exports = {
 
                 let scatterChance, multiChance, highChance;
 
-                // Boost chances slightly during Free Spins
+                // Boost chances slightly during Free Spins - CHALLENGING BUT FUN
                 if (isFreeSpinMode) {
-                    scatterChance = 0.03; // Higher chance to retrigger
-                    multiChance = 0.08;   // More multipliers
-                    highChance = 0.55;
+                    scatterChance = 0.02;  // Further reduced from 0.025
+                    multiChance = 0.05;    // Further reduced from 0.06
+                    highChance = 0.40;     // Further reduced from 0.45
 
                     // Penalty during Free Spins too
                     if (luck <= -50) {
@@ -725,19 +725,19 @@ module.exports = {
 
                 } else if (streakRoll < 0.15) {
                     // HOT STREAK (15%)
-                    scatterChance = 0.05;
-                    multiChance = 0.07;
-                    highChance = 0.58;
+                    scatterChance = 0.04; // Reduced from 0.05
+                    multiChance = 0.06;   // Reduced from 0.07
+                    highChance = 0.50;    // Reduced from 0.58
                 } else if (streakRoll < 0.35) {
                     // COLD STREAK (20%) - Reduced from 30%
                     scatterChance = 0.008;
                     multiChance = 0.015;
                     highChance = 0.30;
                 } else {
-                    // NORMAL (65%) - Increased from 55%
-                    scatterChance = 0.025;
-                    multiChance = 0.04;
-                    highChance = 0.47;
+                    // NORMAL (65%) - BALANCED CHANCE
+                    scatterChance = 0.015; // Reduced from 0.025 (40% reduction)
+                    multiChance = 0.025;   // Reduced from 0.04 (37.5% reduction)
+                    highChance = 0.35;     // Reduced from 0.47 (25.5% reduction)
                 }
 
                 const grid = [];

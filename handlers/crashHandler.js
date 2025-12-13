@@ -53,32 +53,33 @@ module.exports = {
         missionHandler.trackMission(userId, 'play_crash');
 
         // Calculate Crash Point
-        // Algorithm: 3% instant crash (1.00x), then exponential distribution
-        // House Edge: ~4% (built into distribution)
+        // Algorithm: 6% instant crash (1.00x), then exponential distribution
+        // House Edge: ~8% (built into distribution) - BALANCED for less easy wins
         
         const r = Math.random();
         let crashPoint = 1.00;
 
-        if (r < 0.03) {
-            // 3% chance of instant crash (1.00x)
+        if (r < 0.07) {
+            // 7% chance of instant crash (1.00x) - CHALLENGING BUT FUN
             crashPoint = 1.00;
         } else {
             // Exponential distribution with house edge
             // Formula: crashPoint = 1 + (maxMultiplier - 1) * (1 - r^houseEdge)
             // Simplified: Use weighted distribution for better game feel
-            const houseEdge = 0.96; // 4% house edge
+            const houseEdge = 0.90; // 10% house edge - Increased for more challenge
             const maxMultiplier = 100;
-            const adjustedRandom = (r - 0.03) / 0.97; // Normalize to 0-1 range (after removing 3% instant crash)
+            const adjustedRandom = (r - 0.07) / 0.93; // Normalize to 0-1 range (after removing 7% instant crash)
             
             // Exponential-like distribution: lower values more common
             // Using: 1 + (max - 1) * (1 - (1 - adjustedRandom)^power)
             // Power < 1 makes lower multipliers more common
-            const power = 0.7; // Adjusts distribution curve
+            // Lower power = more crashes at low multiplier (harder to win)
+            const power = 0.4; // Further reduced from 0.45 - Makes low multipliers even more common
             const baseMultiplier = 1 + (maxMultiplier - 1) * (1 - Math.pow(1 - adjustedRandom, power));
             crashPoint = Math.floor(baseMultiplier * houseEdge * 100) / 100;
             
-            // Ensure minimum is 1.01x (after instant crash)
-            if (crashPoint < 1.01) crashPoint = 1.01;
+            // Ensure minimum is 1.05x (after instant crash)
+            if (crashPoint < 1.05) crashPoint = 1.05;
         }
 
         // Cap at 100x for safety in this bot economy
