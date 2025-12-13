@@ -28,7 +28,7 @@ const PORT = process.env.PORT || config.port || config.PORT || 3000;
 const ADMIN_PASSWORD = process.env.ADMIN_PASSWORD || config.adminPassword || 'changeme';
 const SESSION_SECRET = process.env.SESSION_SECRET || config.sessionSecret || crypto.randomBytes(32).toString('hex');
 
-// Security Headers (disable HSTS since we're using HTTP only)
+// Security Headers (support both HTTP and HTTPS)
 app.use(helmet({
     contentSecurityPolicy: {
         directives: {
@@ -39,7 +39,11 @@ app.use(helmet({
             fontSrc: ["'self'", "https://cdnjs.cloudflare.com"]
         }
     },
-    hsts: false // Disable HSTS since we're using HTTP only
+    hsts: {
+        maxAge: 31536000,
+        includeSubDomains: true,
+        preload: true
+    }
 }));
 
 // Rate Limiting
@@ -68,24 +72,15 @@ app.use('/api/', limiter);
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(express.json());
 
-// Force HTTP middleware - MUST be early
-app.use((req, res, next) => {
-    // Remove HSTS header
-    res.removeHeader('Strict-Transport-Security');
-    
-    // Redirect HTTPS to HTTP
-    if (req.header('x-forwarded-proto') === 'https' || req.protocol === 'https') {
-        return res.redirect(`http://${req.get('host')}${req.url}`);
-    }
-    next();
-});
+// Trust proxy for HTTPS detection (if behind reverse proxy)
+app.set('trust proxy', 1);
 
 app.use(session({
     secret: SESSION_SECRET,
     resave: true, // Set to true to ensure session is saved
     saveUninitialized: true, // Set to true to save new sessions immediately
     cookie: {
-        secure: false, // Set to false if not using HTTPS (set to true only with HTTPS)
+        secure: 'auto', // Auto-detect HTTPS (secure: true if HTTPS, false if HTTP)
         httpOnly: true, // Prevent XSS
         maxAge: 24 * 60 * 60 * 1000, // 24 hours
         sameSite: 'lax' // CSRF protection
@@ -117,32 +112,6 @@ async function getUsername(client, id) {
 }
 
 function startDashboard(client) {
-
-    // Force HTTP (redirect HTTPS to HTTP and remove HSTS)
-    app.use((req, res, next) => {
-        // Remove HSTS header to prevent browser from forcing HTTPS
-        res.removeHeader('Strict-Transport-Security');
-        
-        // Force HTTP protocol in redirects
-        if (req.header('x-forwarded-proto') === 'https' || req.protocol === 'https') {
-            return res.redirect(`http://${req.get('host')}${req.url}`);
-        }
-        
-        // Override redirect function to always use HTTP
-        const originalRedirect = res.redirect;
-        res.redirect = function(url) {
-            if (typeof url === 'string') {
-                if (url.startsWith('https://')) {
-                    url = url.replace('https://', 'http://');
-                } else if (url.startsWith('/')) {
-                    url = `http://${req.get('host')}${url}`;
-                }
-            }
-            return originalRedirect.call(this, url);
-        };
-        
-        next();
-    });
 
     // 0. TEST ENDPOINT (untuk verifikasi server bekerja)
     app.get('/test', (req, res) => {
@@ -188,8 +157,9 @@ function startDashboard(client) {
             console.log('[LOGIN] Success - Setting session and redirecting immediately');
             console.log('[LOGIN] Session ID:', req.sessionID);
             
-            // Redirect with explicit HTTP URL
-            const adminUrl = `http://${req.get('host')}/admin`;
+            // Redirect with protocol-aware URL
+            const protocol = req.protocol || (req.header('x-forwarded-proto') || 'http');
+            const adminUrl = `${protocol}://${req.get('host')}/admin`;
             console.log('[LOGIN] Redirecting to:', adminUrl);
             return res.redirect(adminUrl);
         } else {
@@ -210,8 +180,9 @@ function startDashboard(client) {
 
     // 3. ADMIN DASHBOARD
     app.get('/admin', checkAuth, async (req, res) => {
-        // Add base URL to template for HTTP links
-        const baseUrl = `http://${req.get('host')}`;
+        // Add base URL to template (protocol-aware)
+        const protocol = req.protocol || (req.header('x-forwarded-proto') || 'http');
+        const baseUrl = `${protocol}://${req.get('host')}`;
         const roles = db.prepare('SELECT * FROM role_aktif').all();
 
         const roleData = [];
@@ -1212,7 +1183,7 @@ function startDashboard(client) {
     app.listen(PORT, '0.0.0.0', () => {
         console.log(`🌐 [WEB ADMIN] Online di http://localhost:${PORT}`);
         console.log(`🌐 [WEB ADMIN] Juga bisa diakses via IP: http://YOUR_IP:${PORT}`);
-        console.log(`⚠️  [WARNING] Server hanya support HTTP, jangan gunakan HTTPS!`);
+        console.log(`🔒 [INFO] Server support HTTP dan HTTPS (jika dikonfigurasi dengan reverse proxy/SSL)`);
     });
 }
 
