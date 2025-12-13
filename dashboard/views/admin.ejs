@@ -419,7 +419,7 @@
                                 <div class="card glass-panel h-100 border-secondary">
                                     <div class="card-header fw-bold text-warning d-flex justify-content-between">
                                         <span>
-                                            <%= TIKET_CONFIG[s.jenis_tiket].label %>
+                                            <%= TIKET_CONFIG[s.jenis_tiket] ? TIKET_CONFIG[s.jenis_tiket].label : s.jenis_tiket %>
                                         </span>
                                         <span class="badge bg-dark border border-secondary">
                                             <%= s.jenis_tiket %>
