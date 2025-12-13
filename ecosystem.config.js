@@ -8,7 +8,7 @@ module.exports = {
         max_memory_restart: '1G',
         env: {
             NODE_ENV: 'production',
-            PORT: process.env.PORT || 2560,
+            PORT: process.env.PORT || 3000,
             BOT_TOKEN: process.env.BOT_TOKEN,
             ADMIN_PASSWORD: process.env.ADMIN_PASSWORD,
             SESSION_SECRET: process.env.SESSION_SECRET,

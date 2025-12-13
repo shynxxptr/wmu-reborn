@@ -68,3 +68,4 @@ pm2 restart warung-mang-ujang
 - Stash adalah cara teraman jika tidak yakin
 - Setelah pull, restart bot untuk apply changes
 
+
