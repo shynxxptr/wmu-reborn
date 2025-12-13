@@ -1778,7 +1778,64 @@
                     badge.style.backgroundColor = color;
                 }
             });
+            
+            // Ensure all forms work properly
+            document.querySelectorAll('form').forEach(form => {
+                // Skip forms that already have event listeners
+                if (form.id && ['setBalanceForm', 'sayForm', 'addAdminForm', 'bulkJailForm', 'bulkBalanceForm', 'createEventForm', 'setMaxBetForm'].includes(form.id)) {
+                    return;
+                }
+                
+                // Add basic form handling for forms with action
+                if (form.action && form.method && form.method.toUpperCase() === 'POST') {
+                    form.addEventListener('submit', function(e) {
+                        // Only prevent default if form has onsubmit handler
+                        if (form.onsubmit) {
+                            const result = form.onsubmit(e);
+                            if (result === false) {
+                                e.preventDefault();
+                                return false;
+                            }
+                        }
+                        // Otherwise let form submit normally
+                    });
+                }
+            });
+            
+            // Ensure all buttons are clickable
+            document.querySelectorAll('button[type="submit"]').forEach(btn => {
+                btn.style.pointerEvents = 'auto';
+                btn.style.cursor = 'pointer';
+            });
+            
+            // Ensure all onclick handlers work
+            document.querySelectorAll('[onclick]').forEach(el => {
+                el.style.pointerEvents = 'auto';
+                el.style.cursor = 'pointer';
+            });
+            
+            // Debug: Log all forms and buttons
+            console.log('Forms found:', document.querySelectorAll('form').length);
+            console.log('Buttons found:', document.querySelectorAll('button').length);
+            console.log('Functions available:', {
+                openTimeModal: typeof openTimeModal !== 'undefined',
+                openEditModal: typeof openEditModal !== 'undefined',
+                deleteWallet: typeof deleteWallet !== 'undefined',
+                removeAdmin: typeof removeAdmin !== 'undefined',
+                stopEvent: typeof stopEvent !== 'undefined',
+                resetLimiter: typeof resetLimiter !== 'undefined',
+                clearTimer: typeof clearTimer !== 'undefined',
+                setLimiterLevel: typeof setLimiterLevel !== 'undefined',
+                editMaxBet: typeof editMaxBet !== 'undefined',
+                resetMaxBet: typeof resetMaxBet !== 'undefined'
+            });
         });
+        
+        // Make sure all global functions are accessible (define them in window scope)
+        if (typeof openTimeModal !== 'undefined') window.openTimeModal = openTimeModal;
+        if (typeof openEditModal !== 'undefined') window.openEditModal = openEditModal;
+        if (typeof deleteWallet !== 'undefined') window.deleteWallet = deleteWallet;
+        if (typeof deleteWalletFromModal !== 'undefined') window.deleteWalletFromModal = deleteWalletFromModal;
 
         // Script Countdown Real-time
         setInterval(() => {
