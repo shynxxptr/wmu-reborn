@@ -190,18 +190,6 @@ module.exports = {
             
             // Track Mission - Win Minesweeper
             missionHandler.trackMission(game.userId, 'win_mines');
-        } catch (error) {
-            console.error('[BOM INTERACTION ERROR]', error);
-            try {
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.' });
-                } else {
-                    await interaction.reply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
-                }
-            } catch (e) {
-                console.error('[BOM ERROR HANDLING FAILED]', e);
-            }
-        }
 
             let comboText = '';
             if (game.comboCount > 0) {
@@ -223,6 +211,18 @@ module.exports = {
             }
             activeMines.delete(interaction.message.id);
             return;
+            } // Close if (interaction.customId === 'mine_cashout')
+        } catch (error) {
+            console.error('[BOM INTERACTION ERROR]', error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.' });
+                } else {
+                    await interaction.reply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
+                }
+            } catch (e) {
+                console.error('[BOM ERROR HANDLING FAILED]', e);
+            }
         }
 
         // CLICK CELL

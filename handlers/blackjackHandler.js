@@ -220,6 +220,18 @@ module.exports = {
             } else {
                 await this.dealerTurn(interaction, game);
             }
+        } // Close if-else for action (hit/stand/double)
+        } catch (error) {
+            console.error('[BJ INTERACTION ERROR]', error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.' });
+                } else {
+                    await interaction.reply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
+                }
+            } catch (e) {
+                console.error('[BJ ERROR HANDLING FAILED]', e);
+            }
         }
     },
 
@@ -290,17 +302,5 @@ module.exports = {
             console.error('[BJ UPDATE ERROR]', e);
         }
         activeBlackjack.delete(game.messageId);
-        } catch (error) {
-            console.error('[BJ INTERACTION ERROR]', error);
-            try {
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.' });
-                } else {
-                    await interaction.reply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
-                }
-            } catch (e) {
-                console.error('[BJ ERROR HANDLING FAILED]', e);
-            }
-        }
     }
 };
