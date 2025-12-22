@@ -212,6 +212,159 @@ module.exports = {
             activeMines.delete(interaction.message.id);
             return;
             } // Close if (interaction.customId === 'mine_cashout')
+
+            // CLICK CELL
+            // Format: mine_click_0, mine_click_1, etc.
+            if (!interaction.customId.startsWith('mine_click_')) {
+                // Not a click interaction, ignore
+                return;
+            }
+            
+            const idx = parseInt(interaction.customId.split('_')[2]);
+            if (isNaN(idx) || idx < 0 || idx >= GRID_SIZE) {
+                // Invalid customId format
+                if (interaction.deferred || interaction.replied) {
+                    return interaction.editReply({ content: '❌ Invalid interaction.' });
+                }
+                return interaction.reply({ content: '❌ Invalid interaction.', flags: [MessageFlags.Ephemeral] });
+            }
+
+            if (game.revealed[idx]) {
+                // Already revealed, just update silently
+                if (interaction.deferred || interaction.replied) {
+                    return; // Already deferred, no need to respond
+                }
+                return; // Already revealed, ignore
+            }
+
+            game.revealed[idx] = true;
+
+            if (game.grid[idx] === 1) {
+                // BOMB! GAME OVER - Reset combo
+                game.comboCount = 0;
+                const embed = new EmbedBuilder()
+                    .setTitle('💥 DUAR! KENA BOM!')
+                    .setDescription(`Sayang sekali, uang **Rp ${game.bet.toLocaleString('id-ID')}** hangus terbakar. 💸\n💀 **COMBO RESET!**\n*${game.walletType}*`)
+                    .setColor('#FF0000');
+
+                const rows = this.revealAll(game, false, idx);
+                try {
+                    if (interaction.deferred || interaction.replied) {
+                        await interaction.editReply({ embeds: [embed], components: rows });
+                    } else {
+                        await interaction.update({ embeds: [embed], components: rows });
+                    }
+                } catch (e) {
+                    console.error('[BOM UPDATE ERROR]', e);
+                }
+                activeMines.delete(interaction.message.id);
+            } else {
+                // SAFE!
+                // Calculate new multiplier
+                const totalSpots = GRID_SIZE;
+                const revealedCount = game.revealed.filter(r => r).length; // Includes this one
+                const safeRevealed = revealedCount; // All revealed so far are safe (since we didn't hit bomb)
+                const safeTotal = GRID_SIZE - BOMB_COUNT;
+
+                // Previous state
+                const safeRemainingBefore = safeTotal - (safeRevealed - 1);
+                const totalRemainingBefore = totalSpots - (safeRevealed - 1);
+
+                // Update Multiplier with edge case protection
+                if (safeRemainingBefore > 0 && totalRemainingBefore > 0 && safeRemainingBefore <= totalRemainingBefore) {
+                    game.multiplier = calculateNextMultiplier(game.multiplier, safeRemainingBefore, totalRemainingBefore);
+                } else {
+                    // Edge case: all safe spots revealed or invalid state, cap multiplier
+                    game.multiplier = Math.min(game.multiplier * 1.1, game.bet * 1000); // Cap at reasonable max
+                }
+
+                // COMBO SYSTEM - Increment combo on safe click
+                game.comboCount++;
+                const comboBonus = this.getComboBonus(game.comboCount);
+                const finalMultiplier = game.multiplier * (1 + comboBonus);
+                const winAmount = Math.floor(game.bet * finalMultiplier);
+                
+                // TRACK STATS - Update best combo
+                const isNewRecord = db.updateBestCombo(game.userId, 'bom', game.comboCount);
+                let achievementUnlocked = false;
+                if (isNewRecord) {
+                    // Check achievements
+                    const achievementHandler = require('./achievementHandler.js');
+                    const unlocked = await achievementHandler.checkAchievements(game.userId);
+                    if (unlocked.length > 0) {
+                        achievementUnlocked = true;
+                    }
+                }
+
+                // Warning system - Every 3 clicks show warning
+                let warningText = '';
+                if (game.comboCount >= 3 && game.comboCount % 3 === 0) {
+                    warningText = `\n⚠️ **Risiko meningkat!** (${game.comboCount} clicks berturut-turut)`;
+                }
+                
+                // VISUAL FEEDBACK - Celebration for new record
+                let recordText = '';
+                if (isNewRecord) {
+                    recordText = `\n🎉 **NEW RECORD!** Best Combo: ${game.comboCount}x!`;
+                }
+
+                let comboText = '';
+                if (game.comboCount > 0) {
+                    comboText = `\n🔥 **COMBO x${game.comboCount}** (+${(comboBonus * 100).toFixed(0)}% bonus)`;
+                }
+
+                // Status badge berdasarkan combo
+                const comboBadge = game.comboCount >= 7 ? '🟢 [HIGH RISK]' : game.comboCount >= 5 ? '🟡 [MEDIUM RISK]' : game.comboCount >= 3 ? '🟠 [LOW RISK]' : '⚪ [SAFE]';
+                
+                // Progress bar untuk combo
+                const comboProgress = Math.min(100, (game.comboCount / 10) * 100);
+                const comboBarLength = Math.min(10, Math.floor(comboProgress / 10));
+                const comboBarEmoji = game.comboCount >= 7 ? '🟥' : game.comboCount >= 5 ? '🟧' : game.comboCount >= 3 ? '🟨' : '🟩';
+                const comboBar = comboBarEmoji.repeat(comboBarLength) + '⬜'.repeat(10 - comboBarLength);
+                
+                const embed = new EmbedBuilder()
+                    .setTitle('💣 TEBAK BOM (Minesweeper)')
+                    .setDescription(
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `💰 **Bet:** Rp ${game.bet.toLocaleString('id-ID')}\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                        `📊 **Multiplier:** ${game.multiplier.toFixed(2)}x → **${finalMultiplier.toFixed(2)}x**\n` +
+                        `💰 **Win:** Rp ${winAmount.toLocaleString('id-ID')}\n` +
+                        `${comboText}${recordText}${warningText}\n` +
+                        `**Combo Progress:** ${comboBar} ${Math.floor(comboProgress)}%\n` +
+                        `${comboBadge}\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                        `*Lanjut atau Cashout?*`
+                    )
+                    .setColor(game.comboCount >= 5 ? '#FF6600' : game.comboCount >= 3 ? '#FFAA00' : '#FFFF00')
+                    .setAuthor({ 
+                        name: interaction.user.username, 
+                        iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setFooter({ text: `💣 Warung Mang Ujang : Reborn • Combo: ${game.comboCount}x` })
+                    .setTimestamp();
+                
+                // Show achievement notification if unlocked
+                if (achievementUnlocked) {
+                    await interaction.followUp({ 
+                        content: '🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!', 
+                        flags: [64] // Ephemeral
+                    }).catch(() => {}); // Ignore errors if interaction expired
+                }
+
+                // Update Buttons
+                const rows = this.updateButtons(game);
+
+                try {
+                    if (interaction.deferred || interaction.replied) {
+                        await interaction.editReply({ embeds: [embed], components: rows });
+                    } else {
+                        await interaction.update({ embeds: [embed], components: rows });
+                    }
+                } catch (e) {
+                    console.error('[BOM UPDATE ERROR]', e);
+                }
+            }
         } catch (error) {
             console.error('[BOM INTERACTION ERROR]', error);
             try {
@@ -222,145 +375,6 @@ module.exports = {
                 }
             } catch (e) {
                 console.error('[BOM ERROR HANDLING FAILED]', e);
-            }
-        }
-
-        // CLICK CELL
-        const idx = parseInt(interaction.customId.split('_')[2]);
-        if (game.revealed[idx]) {
-            try {
-                return await interaction.deferUpdate();
-            } catch (e) {
-                return; // Already revealed, ignore
-            }
-        }
-
-        game.revealed[idx] = true;
-
-        if (game.grid[idx] === 1) {
-            // BOMB! GAME OVER - Reset combo
-            game.comboCount = 0;
-            const embed = new EmbedBuilder()
-                .setTitle('💥 DUAR! KENA BOM!')
-                .setDescription(`Sayang sekali, uang **Rp ${game.bet.toLocaleString('id-ID')}** hangus terbakar. 💸\n💀 **COMBO RESET!**\n*${game.walletType}*`)
-                .setColor('#FF0000');
-
-            const rows = this.revealAll(game, false, idx);
-            try {
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ embeds: [embed], components: rows });
-                } else {
-                    await interaction.update({ embeds: [embed], components: rows });
-                }
-            } catch (e) {
-                console.error('[BOM UPDATE ERROR]', e);
-            }
-            activeMines.delete(interaction.message.id);
-        } else {
-            // SAFE!
-            // Calculate new multiplier
-            const totalSpots = GRID_SIZE;
-            const revealedCount = game.revealed.filter(r => r).length; // Includes this one
-            const safeRevealed = revealedCount; // All revealed so far are safe (since we didn't hit bomb)
-            const safeTotal = GRID_SIZE - BOMB_COUNT;
-
-            // Previous state
-            const safeRemainingBefore = safeTotal - (safeRevealed - 1);
-            const totalRemainingBefore = totalSpots - (safeRevealed - 1);
-
-            // Update Multiplier with edge case protection
-            if (safeRemainingBefore > 0 && totalRemainingBefore > 0 && safeRemainingBefore <= totalRemainingBefore) {
-                game.multiplier = calculateNextMultiplier(game.multiplier, safeRemainingBefore, totalRemainingBefore);
-            } else {
-                // Edge case: all safe spots revealed or invalid state, cap multiplier
-                game.multiplier = Math.min(game.multiplier * 1.1, game.bet * 1000); // Cap at reasonable max
-            }
-
-            // COMBO SYSTEM - Increment combo on safe click
-            game.comboCount++;
-            const comboBonus = this.getComboBonus(game.comboCount);
-            const finalMultiplier = game.multiplier * (1 + comboBonus);
-            const winAmount = Math.floor(game.bet * finalMultiplier);
-            
-            // TRACK STATS - Update best combo
-            const isNewRecord = db.updateBestCombo(game.userId, 'bom', game.comboCount);
-            let achievementUnlocked = false;
-            if (isNewRecord) {
-                // Check achievements
-                const achievementHandler = require('./achievementHandler.js');
-                const unlocked = await achievementHandler.checkAchievements(game.userId);
-                if (unlocked.length > 0) {
-                    achievementUnlocked = true;
-                }
-            }
-
-            // Warning system - Every 3 clicks show warning
-            let warningText = '';
-            if (game.comboCount >= 3 && game.comboCount % 3 === 0) {
-                warningText = `\n⚠️ **Risiko meningkat!** (${game.comboCount} clicks berturut-turut)`;
-            }
-            
-            // VISUAL FEEDBACK - Celebration for new record
-            let recordText = '';
-            if (isNewRecord) {
-                recordText = `\n🎉 **NEW RECORD!** Best Combo: ${game.comboCount}x!`;
-            }
-
-            let comboText = '';
-            if (game.comboCount > 0) {
-                comboText = `\n🔥 **COMBO x${game.comboCount}** (+${(comboBonus * 100).toFixed(0)}% bonus)`;
-            }
-
-            // Status badge berdasarkan combo
-            const comboBadge = game.comboCount >= 7 ? '🟢 [HIGH RISK]' : game.comboCount >= 5 ? '🟡 [MEDIUM RISK]' : game.comboCount >= 3 ? '🟠 [LOW RISK]' : '⚪ [SAFE]';
-            
-            // Progress bar untuk combo
-            const comboProgress = Math.min(100, (game.comboCount / 10) * 100);
-            const comboBarLength = Math.min(10, Math.floor(comboProgress / 10));
-            const comboBarEmoji = game.comboCount >= 7 ? '🟥' : game.comboCount >= 5 ? '🟧' : game.comboCount >= 3 ? '🟨' : '🟩';
-            const comboBar = comboBarEmoji.repeat(comboBarLength) + '⬜'.repeat(10 - comboBarLength);
-            
-            const embed = new EmbedBuilder()
-                .setTitle('💣 TEBAK BOM (Minesweeper)')
-                .setDescription(
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                    `💰 **Bet:** Rp ${game.bet.toLocaleString('id-ID')}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `📊 **Multiplier:** ${game.multiplier.toFixed(2)}x → **${finalMultiplier.toFixed(2)}x**\n` +
-                    `💰 **Win:** Rp ${winAmount.toLocaleString('id-ID')}\n` +
-                    `${comboText}${recordText}${warningText}\n` +
-                    `**Combo Progress:** ${comboBar} ${Math.floor(comboProgress)}%\n` +
-                    `${comboBadge}\n` +
-                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
-                    `*Lanjut atau Cashout?*`
-                )
-                .setColor(game.comboCount >= 5 ? '#FF6600' : game.comboCount >= 3 ? '#FFAA00' : '#FFFF00')
-                .setAuthor({ 
-                    name: interaction.user.username, 
-                    iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
-                })
-                .setFooter({ text: `💣 Warung Mang Ujang : Reborn • Combo: ${game.comboCount}x` })
-                .setTimestamp();
-            
-            // Show achievement notification if unlocked
-            if (achievementUnlocked) {
-                await interaction.followUp({ 
-                    content: '🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!', 
-                    flags: [64] // Ephemeral
-                }).catch(() => {}); // Ignore errors if interaction expired
-            }
-
-            // Update Buttons
-            const rows = this.updateButtons(game);
-
-            try {
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ embeds: [embed], components: rows });
-                } else {
-                    await interaction.update({ embeds: [embed], components: rows });
-                }
-            } catch (e) {
-                console.error('[BOM UPDATE ERROR]', e);
             }
         }
     },
