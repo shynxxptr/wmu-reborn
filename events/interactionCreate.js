@@ -170,24 +170,56 @@ module.exports = {
 
             // H. MINESWEEPER HANDLER
             if (id.startsWith('mine_')) {
+                // Defer immediately to prevent "interaction failed"
+                try {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferUpdate();
+                    }
+                } catch (e) {
+                    console.error('[MINESWEEPER DEFER ERROR]', e);
+                }
                 await minesweeperHandler.handleInteraction(interaction);
                 return;
             }
 
             // I. UNO HANDLER
             if (id.startsWith('uno_')) {
+                // Defer immediately to prevent "interaction failed"
+                try {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferUpdate();
+                    }
+                } catch (e) {
+                    console.error('[UNO DEFER ERROR]', e);
+                }
                 await unoHandler.handleInteraction(interaction);
                 return;
             }
 
             // J. SLOT HANDLER (Stop Button)
             if (id.startsWith('slot_')) {
+                // Defer immediately to prevent "interaction failed"
+                try {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferUpdate();
+                    }
+                } catch (e) {
+                    console.error('[SLOT DEFER ERROR]', e);
+                }
                 await gamblingHandler.handleSlotButton(interaction);
                 return;
             }
 
             // K. BLACKJACK HANDLER
             if (id.startsWith('bj_')) {
+                // Defer immediately to prevent "interaction failed"
+                try {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferUpdate();
+                    }
+                } catch (e) {
+                    console.error('[BLACKJACK DEFER ERROR]', e);
+                }
                 await blackjackHandler.handleInteraction(interaction);
                 return;
             }
