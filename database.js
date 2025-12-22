@@ -860,15 +860,34 @@ db.getAdmins = () => {
 
 db.getTopBalances = (limit = 10) => {
     try {
+        // Use LEFT JOIN instead of NOT IN to handle empty tables better
         return db.prepare(`
-            SELECT user_id, uang_jajan 
-            FROM user_economy 
-            WHERE user_id NOT IN (SELECT user_id FROM leaderboard_blacklist)
-            AND user_id NOT IN (SELECT user_id FROM bot_admins)
-            ORDER BY uang_jajan DESC 
+            SELECT e.user_id, e.uang_jajan 
+            FROM user_economy e
+            LEFT JOIN leaderboard_blacklist lb ON e.user_id = lb.user_id
+            LEFT JOIN bot_admins ba ON e.user_id = ba.user_id
+            WHERE lb.user_id IS NULL 
+            AND ba.user_id IS NULL
+            AND e.uang_jajan > 0
+            ORDER BY e.uang_jajan DESC 
             LIMIT ?
         `).all(limit);
-    } catch (e) { return []; }
+    } catch (e) { 
+        console.error('[DB] getTopBalances error:', e);
+        // Fallback: simple query without filters
+        try {
+            return db.prepare(`
+                SELECT user_id, uang_jajan 
+                FROM user_economy 
+                WHERE uang_jajan > 0
+                ORDER BY uang_jajan DESC 
+                LIMIT ?
+            `).all(limit);
+        } catch (e2) {
+            console.error('[DB] getTopBalances fallback error:', e2);
+            return [];
+        }
+    }
 };
 
 // 19. LUCK PENALTY SYSTEM

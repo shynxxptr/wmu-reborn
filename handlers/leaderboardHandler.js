@@ -1,23 +1,39 @@
-const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType } = require('discord.js');
-const Canvas = require('canvas');
+const { AttachmentBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, ComponentType, EmbedBuilder } = require('discord.js');
+let Canvas;
+try {
+    Canvas = require('canvas');
+} catch (e) {
+    console.error('[LEADERBOARD] Canvas module not available:', e.message);
+    Canvas = null;
+}
 const db = require('../database.js');
 
 async function showLeaderboard(source, db, type = 'global', eventId = null) {
-    // Determine if source is Interaction or Message
-    const isInteraction = source.commandName !== undefined;
-    const user = isInteraction ? source.user : source.author;
-    const channel = source.channel;
-    const guild = source.guild;
+    try {
+        // Determine if source is Interaction or Message
+        const isInteraction = source.commandName !== undefined;
+        const user = isInteraction ? source.user : source.author;
+        const channel = source.channel;
+        const guild = source.guild;
 
-    // Initial Reply/Defer
-    if (isInteraction) {
-        if (!source.deferred && !source.replied) await source.deferReply();
-    }
+        // Initial Reply/Defer
+        if (isInteraction) {
+            if (!source.deferred && !source.replied) await source.deferReply();
+        }
 
     // 1. Fetch Data based on Type
     let topUsers = [];
-    let title = '🏆 Top Sultan Mang Ujang';
+    let title = '🏆 Top Sultan Warung Mang Ujang : Reborn';
     let subTitlePrefix = 'Global Leaderboard';
+
+    // Debug: Check if database has any users
+    try {
+        const totalUsers = db.prepare('SELECT COUNT(*) as count FROM user_economy').get();
+        const usersWithBalance = db.prepare('SELECT COUNT(*) as count FROM user_economy WHERE uang_jajan > 0').get();
+        console.log(`[LEADERBOARD DEBUG] Total users: ${totalUsers?.count || 0}, Users with balance: ${usersWithBalance?.count || 0}`);
+    } catch (e) {
+        console.error('[LEADERBOARD DEBUG] Error checking database:', e);
+    }
 
     if (type === 'event') {
         if (!eventId) {
@@ -55,8 +71,14 @@ async function showLeaderboard(source, db, type = 'global', eventId = null) {
         topUsers = db.getTopBalances(100);
     }
 
+    // Debug logging
+    console.log(`[LEADERBOARD] Type: ${type}, Found ${topUsers.length} users`);
+    if (topUsers.length > 0) {
+        console.log(`[LEADERBOARD] Top user: ${topUsers[0].user_id} with ${topUsers[0].uang_jajan}`);
+    }
+
     if (topUsers.length === 0) {
-        const text = 'Belum ada data leaderboard yang tercatat.';
+        const text = '❌ Belum ada data leaderboard yang tercatat.\n\n**Kemungkinan penyebab:**\n• Belum ada user yang memiliki saldo\n• Semua user ter-blacklist atau admin\n• Database kosong';
         return isInteraction ? source.editReply(text) : source.reply(text);
     }
 
@@ -66,6 +88,10 @@ async function showLeaderboard(source, db, type = 'global', eventId = null) {
 
     // Helper to generate image
     const generateLeaderboardImage = async (pageIndex) => {
+        if (!Canvas) {
+            throw new Error('Canvas module not available');
+        }
+        
         const canvas = Canvas.createCanvas(700, 800); // Width x Height
         const ctx = canvas.getContext('2d');
 
@@ -168,9 +194,33 @@ async function showLeaderboard(source, db, type = 'global', eventId = null) {
         return canvas.toBuffer();
     };
 
-    // Initial Send
-    const buffer = await generateLeaderboardImage(currentPage);
-    const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+    // Helper to generate embed (fallback)
+    const generateLeaderboardEmbed = (pageIndex) => {
+        const start = pageIndex * USERS_PER_PAGE;
+        const end = start + USERS_PER_PAGE;
+        const pageUsers = topUsers.slice(start, end);
+        
+        const embed = new EmbedBuilder()
+            .setTitle(title)
+            .setDescription(`${subTitlePrefix} • Halaman ${pageIndex + 1} dari ${totalPages}`)
+            .setColor('#00AAFF')
+            .setTimestamp();
+        
+        const fields = [];
+        for (let i = 0; i < pageUsers.length; i++) {
+            const u = pageUsers[i];
+            const rank = start + i + 1;
+            const medal = rank === 1 ? '🥇' : rank === 2 ? '🥈' : rank === 3 ? '🥉' : `\`#${rank}\``;
+            fields.push({
+                name: `${medal} Rank ${rank}`,
+                value: `<@${u.user_id}> - **Rp ${u.uang_jajan.toLocaleString('id-ID')}**`,
+                inline: false
+            });
+        }
+        
+        embed.addFields(fields);
+        return embed;
+    };
 
     const getRow = (page) => {
         return new ActionRowBuilder().addComponents(
@@ -188,12 +238,36 @@ async function showLeaderboard(source, db, type = 'global', eventId = null) {
     };
 
     let sentMessage;
-    const payload = { files: [attachment], components: [getRow(currentPage)] };
+    let useImage = true;
+    
+    try {
+        // Try to generate image
+        if (!Canvas) {
+            throw new Error('Canvas not available');
+        }
+        
+        const buffer = await generateLeaderboardImage(currentPage);
+        const attachment = new AttachmentBuilder(buffer, { name: 'leaderboard.png' });
+        const payload = { files: [attachment], components: [getRow(currentPage)] };
 
-    if (isInteraction) {
-        sentMessage = await source.editReply(payload);
-    } else {
-        sentMessage = await source.reply(payload);
+        if (isInteraction) {
+            sentMessage = await source.editReply(payload);
+        } else {
+            sentMessage = await source.reply(payload);
+        }
+    } catch (imageError) {
+        console.error('[LEADERBOARD IMAGE ERROR]', imageError);
+        useImage = false;
+        
+        // Fallback to embed
+        const embed = generateLeaderboardEmbed(currentPage);
+        const payload = { embeds: [embed], components: [getRow(currentPage)] };
+
+        if (isInteraction) {
+            sentMessage = await source.editReply(payload);
+        } else {
+            sentMessage = await source.reply(payload);
+        }
     }
 
     // Collector
@@ -209,10 +283,21 @@ async function showLeaderboard(source, db, type = 'global', eventId = null) {
         if (i.customId === 'lb_prev') currentPage--;
         else if (i.customId === 'lb_next') currentPage++;
 
-        const newBuffer = await generateLeaderboardImage(currentPage);
-        const newAttachment = new AttachmentBuilder(newBuffer, { name: 'leaderboard.png' });
-
-        await i.editReply({ files: [newAttachment], components: [getRow(currentPage)] });
+        try {
+            if (useImage && Canvas) {
+                const newBuffer = await generateLeaderboardImage(currentPage);
+                const newAttachment = new AttachmentBuilder(newBuffer, { name: 'leaderboard.png' });
+                await i.editReply({ files: [newAttachment], components: [getRow(currentPage)] });
+            } else {
+                const embed = generateLeaderboardEmbed(currentPage);
+                await i.editReply({ embeds: [embed], components: [getRow(currentPage)] });
+            }
+        } catch (e) {
+            console.error('[LEADERBOARD UPDATE ERROR]', e);
+            // Fallback to embed if image fails
+            const embed = generateLeaderboardEmbed(currentPage);
+            await i.editReply({ embeds: [embed], components: [getRow(currentPage)] });
+        }
     });
 
     collector.on('end', () => {
@@ -222,6 +307,24 @@ async function showLeaderboard(source, db, type = 'global', eventId = null) {
         );
         sentMessage.edit({ components: [disabledRow] }).catch(() => { });
     });
+    } catch (error) {
+        console.error('[LEADERBOARD ERROR]', error);
+        const isInteraction = source.commandName !== undefined;
+        const errorText = '❌ **Error:** Gagal menampilkan leaderboard. Silakan coba lagi nanti.';
+        try {
+            if (isInteraction) {
+                if (source.deferred || source.replied) {
+                    await source.editReply(errorText);
+                } else {
+                    await source.reply(errorText);
+                }
+            } else {
+                await source.reply(errorText);
+            }
+        } catch (e) {
+            console.error('[LEADERBOARD ERROR HANDLING FAILED]', e);
+        }
+    }
 }
 
 async function updateLeaderboardRoles(client) {
