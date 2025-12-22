@@ -59,41 +59,48 @@ module.exports = {
 
         // Calculate Crash Point
         // Algorithm: More instant crash + weighted distribution for more crashes at 1-2x
-        // House Edge: ~12% (built into distribution) - HARDER to prevent spam
+        // House Edge: ~22% (built into distribution) - RTP ~78% (76-80% range)
         
         const r = Math.random();
         let crashPoint = 1.00;
 
-        if (r < 0.12) {
-            // 12% chance of instant crash (1.00x) - INCREASED to prevent spam
+        if (r < 0.25) {
+            // 25% chance of instant crash (1.00x) - INCREASED significantly
             crashPoint = 1.00;
-        } else if (r < 0.45) {
-            // 33% chance of crash between 1.0x - 2.0x (after instant crash)
-            // This makes 45% total chance to crash at 1.0x - 2.0x
-            const adjustedRandom = (r - 0.12) / 0.33; // Normalize to 0-1 range
+        } else if (r < 0.65) {
+            // 40% chance of crash between 1.0x - 2.0x (after instant crash)
+            // This makes 65% total chance to crash at 1.0x - 2.0x
+            const adjustedRandom = (r - 0.25) / 0.40; // Normalize to 0-1 range
             // Linear distribution from 1.0x to 2.0x
             crashPoint = 1.0 + (adjustedRandom * 1.0); // 1.0x to 2.0x
             crashPoint = Math.floor(crashPoint * 100) / 100;
+        } else if (r < 0.88) {
+            // 23% chance of crash between 2.0x - 5.0x
+            // This makes 88% total chance to crash below 5.0x
+            const adjustedRandom = (r - 0.65) / 0.23; // Normalize to 0-1 range
+            // Linear distribution from 2.0x to 5.0x
+            crashPoint = 2.0 + (adjustedRandom * 3.0); // 2.0x to 5.0x
+            crashPoint = Math.floor(crashPoint * 100) / 100;
         } else {
-            // Remaining 55% chance: exponential distribution for higher multipliers
-            // But still weighted towards lower multipliers
-            const houseEdge = 0.88; // 12% house edge - Increased for more challenge
-            const maxMultiplier = 100;
-            const adjustedRandom = (r - 0.45) / 0.55; // Normalize to 0-1 range
+            // Remaining 12% chance: exponential distribution for higher multipliers
+            // But still heavily weighted towards lower multipliers
+            const houseEdge = 0.78; // 22% house edge - RTP ~78%
+            const maxMultiplier = 30; // Reduced from 50 to make high multipliers much rarer
+            const adjustedRandom = (r - 0.88) / 0.12; // Normalize to 0-1 range
             
-            // Exponential-like distribution: lower values more common
+            // Exponential-like distribution: lower values much more common
             // Using: 1 + (max - 1) * (1 - (1 - adjustedRandom)^power)
             // Lower power = more crashes at low multiplier (harder to win)
-            const power = 0.25; // Further reduced from 0.4 - Makes low multipliers MUCH more common
+            const power = 0.10; // Further reduced from 0.15 - Makes low multipliers EXTREMELY common
             const baseMultiplier = 1 + (maxMultiplier - 1) * (1 - Math.pow(1 - adjustedRandom, power));
             crashPoint = Math.floor(baseMultiplier * houseEdge * 100) / 100;
             
-            // Ensure minimum is 2.0x (after low range crash)
-            if (crashPoint < 2.0) crashPoint = 2.0;
+            // Ensure minimum is 5.0x (after low range crash)
+            if (crashPoint < 5.0) crashPoint = 5.0;
         }
 
-        // Cap at 100x for safety in this bot economy
-        if (crashPoint > 100) crashPoint = 100;
+        // Cap at 30x for safety (reduced from 50x)
+        if (crashPoint > 30) crashPoint = 30;
 
         // Initial UI dengan visual enhancement
         const embed = new EmbedBuilder()
