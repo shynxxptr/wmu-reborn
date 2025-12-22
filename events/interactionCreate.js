@@ -156,6 +156,14 @@ module.exports = {
 
             // G. CRASH / SAHAM HANDLER
             if (id.startsWith('crash_')) {
+                // Defer immediately to prevent "interaction failed"
+                try {
+                    if (!interaction.deferred && !interaction.replied) {
+                        await interaction.deferUpdate();
+                    }
+                } catch (e) {
+                    console.error('[CRASH DEFER ERROR]', e);
+                }
                 await crashHandler.handleInteraction(interaction);
                 return;
             }
