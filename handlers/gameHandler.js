@@ -215,13 +215,18 @@ module.exports = {
           });
         }
       } else {
-      const channel = interaction.client.channels.cache.get(state.channelId);
-      if (channel) {
-        try {
-          const msg = await channel.messages.fetch(state.messageId);
-          await msg.edit({ embeds: [embed], components: [row] });
-        } catch (e) {}
+        const channel = interaction.client.channels.cache.get(state.channelId);
+        if (channel) {
+          try {
+            const msg = await channel.messages.fetch(state.messageId);
+            await msg.edit({ embeds: [embed], components: [row] });
+          } catch (e) {
+            // Message not found or error, ignore
+          }
+        }
       }
+    } catch (error) {
+      console.error('[GameHandler] Error in startRound:', error);
     }
   },
 

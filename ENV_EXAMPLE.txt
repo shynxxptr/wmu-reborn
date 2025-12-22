@@ -1,0 +1,102 @@
+# ========================================
+# Warung Mang Ujang : Reborn Bot
+# Environment Variables Configuration
+# ========================================
+# 
+# INSTRUKSI:
+# 1. Copy file ini menjadi .env
+# 2. Isi semua nilai yang diperlukan
+# 3. Jangan commit file .env ke git!
+#
+# ========================================
+
+# ========================================
+# BOT CONFIGURATION (WAJIB)
+# ========================================
+# Discord Bot Token - Dapatkan dari https://discord.com/developers/applications
+BOT_TOKEN=your_discord_bot_token_here
+
+# Discord Client ID - Sama seperti di Developer Portal
+CLIENT_ID=your_discord_client_id_here
+
+# ========================================
+# DASHBOARD CONFIGURATION
+# ========================================
+# Password untuk login dashboard admin
+ADMIN_PASSWORD=your_secure_password_here
+
+# Secret untuk session (generate random string)
+# Bisa generate dengan: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+SESSION_SECRET=generate_random_secret_string_here
+
+# Port untuk dashboard web (default: 2560)
+PORT=2560
+
+# ========================================
+# DISCORD CHANNEL IDs (OPSIONAL)
+# ========================================
+# Channel ID untuk logs bot
+LOG_CHANNEL_ID=your_log_channel_id_here
+
+# Channel ID untuk request/permintaan
+REQUEST_CHANNEL_ID=your_request_channel_id_here
+
+# Channel ID untuk stock/saham
+STOCK_CHANNEL_ID=your_stock_channel_id_here
+
+# ========================================
+# TICKET & MARKET CONFIGURATION
+# ========================================
+# Category ID untuk channel tiket transaksi (WAJIB untuk sistem tiket)
+# Cara dapatkan: Enable Developer Mode > Right-click kategori > Copy ID
+TICKET_CATEGORY_ID=your_ticket_category_id_here
+
+# Channel ID untuk shop/market (OPSIONAL)
+# Jika tidak di-set, shop bisa dipasang di channel manapun dengan /setup-shop
+SHOP_CHANNEL_ID=your_shop_channel_id_here
+
+# Channel ID untuk custom role market (OPSIONAL)
+# Jika tidak di-set, !shoprole dan !belirole bisa digunakan di channel manapun
+ROLE_MARKET_CHANNEL_ID=your_role_market_channel_id_here
+
+# ========================================
+# ENVIRONMENT SETTINGS
+# ========================================
+# Environment mode: production atau development
+NODE_ENV=production
+
+# Log level: info, debug, error
+LOG_LEVEL=info
+
+# ========================================
+# DATABASE BACKUP (OPSIONAL)
+# ========================================
+# Enable auto backup (true/false)
+AUTO_BACKUP_ENABLED=false
+
+# Interval backup dalam jam (default: 24)
+BACKUP_INTERVAL_HOURS=24
+
+# S3 Bucket untuk backup (jika menggunakan AWS S3)
+S3_BACKUP_BUCKET=
+
+# ========================================
+# SSL/HTTPS CONFIGURATION (OPSIONAL)
+# ========================================
+# Enable SSL/HTTPS (true/false)
+SSL_ENABLED=false
+
+# Path ke SSL certificate file (jika SSL_ENABLED=true)
+SSL_CERT=/path/to/cert.pem
+
+# Path ke SSL private key file (jika SSL_ENABLED=true)
+SSL_KEY=/path/to/key.pem
+
+# ========================================
+# NOTES
+# ========================================
+# - File .env sudah di .gitignore, aman untuk commit
+# - Jangan share file .env dengan real token
+# - Rotate token jika exposed
+# - Generate SESSION_SECRET yang random dan kuat
+

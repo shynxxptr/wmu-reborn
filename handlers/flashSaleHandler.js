@@ -61,7 +61,7 @@ module.exports = {
             await message.edit({ embeds: [oldEmbed], components: rows });
 
             // 6. BUAT CHANNEL TICKET (TEMPORARY)
-            const ticketChannel = await guild.channels.create({
+            const ticketOptions = {
                 name: `ticket-${user.username}`,
                 type: ChannelType.GuildText,
                 permissionOverwrites: [
@@ -79,7 +79,14 @@ module.exports = {
                     }
                     // Tambahkan Role Admin disini jika perlu
                 ],
-            });
+            };
+            
+            // Add parent category if configured
+            if (TICKET_CATEGORY_ID) {
+                ticketOptions.parent = TICKET_CATEGORY_ID;
+            }
+            
+            const ticketChannel = await guild.channels.create(ticketOptions);
 
             // 7. Simpan data Buyer
             db.prepare('INSERT OR REPLACE INTO flash_buyers (message_id, user_id, channel_id) VALUES (?, ?, ?)').run(message.id, user.id, ticketChannel.id);

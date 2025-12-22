@@ -5,6 +5,22 @@ const {
 const db = require('../database.js');
 const { TIKET_CONFIG } = require('../utils/helpers.js');
 
+// Load config (env or config.json)
+let config = {};
+try {
+    require('dotenv').config({ path: '.env' });
+} catch (e) {
+    // dotenv optional
+}
+try {
+    config = require('../config.json');
+} catch (e) {
+    // config.json optional
+}
+
+// Get ticket category ID from env or config
+const TICKET_CATEGORY_ID = process.env.TICKET_CATEGORY_ID || config.ticketCategoryId || '1444702371111374888';
+
 module.exports = {
     async handleShopInteraction(interaction, client) {
         const { customId, user, guild } = interaction;
@@ -46,7 +62,7 @@ module.exports = {
                     ticketChannel = await guild.channels.create({
                         name: ticketName,
                         type: ChannelType.GuildText,
-                        parent: '1444702371111374888', // Kategori Transaksi
+                        parent: TICKET_CATEGORY_ID, // Kategori Transaksi (dari config)
                         topic: user.id, // Simpan ID user di deskripsi channel (PENTING)
                         permissionOverwrites: [
                             {

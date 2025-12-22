@@ -1,0 +1,21 @@
+{
+    "token": "YOUR_BOT_TOKEN_HERE",
+    "clientId": "YOUR_CLIENT_ID_HERE",
+    "adminPassword": "YOUR_PASSWORD_HERE",
+    "sessionSecret": "YOUR_RANDOM_SECRET_HERE",
+    "port": 2560,
+    "logChannelId": "YOUR_LOG_CHANNEL_ID_HERE",
+    "requestChannelId": "YOUR_REQUEST_CHANNEL_ID_HERE",
+    "stockChannelId": "YOUR_STOCK_CHANNEL_ID_HERE",
+    "ticketCategoryId": "YOUR_TICKET_CATEGORY_ID_HERE",
+    "shopChannelId": "YOUR_SHOP_CHANNEL_ID_HERE",
+    "roleMarketChannelId": "YOUR_ROLE_MARKET_CHANNEL_ID_HERE",
+    "nodeEnv": "production",
+    "logLevel": "info",
+    "autoBackupEnabled": false,
+    "backupIntervalHours": 24,
+    "s3BackupBucket": "",
+    "sslEnabled": false,
+    "sslCert": "/path/to/cert.pem",
+    "sslKey": "/path/to/key.pem"
+}

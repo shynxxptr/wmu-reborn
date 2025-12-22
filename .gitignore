@@ -9,3 +9,7 @@ database.db
 database.db-journal
 *.db-shm
 *.db-wal
+
+# Example files (safe to commit)
+!.env.example
+!config.json.example
