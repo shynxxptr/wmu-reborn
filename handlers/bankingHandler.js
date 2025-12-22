@@ -16,7 +16,7 @@ module.exports = {
             const embed = new EmbedBuilder()
                 .setTitle('🏦 BANK MANG UJANG')
                 .setColor('#0099ff')
-                .setDescription('Simpan uangmu di bank untuk aman dari maintenance cost!')
+                .setDescription('Simpan uangmu di bank untuk aman dan dapat bunga!')
                 .addFields(
                     { name: '💰 Saldo Utama', value: `Rp ${formatMoney(mainBalance)}`, inline: true },
                     { name: '🏦 Saldo Bank', value: `Rp ${formatMoney(bankBalance)}`, inline: true },
@@ -120,19 +120,41 @@ module.exports = {
             if (isNaN(amount) || amount <= 0) return message.reply('❌ Jumlah tidak valid!');
             if (amount > bankBalance) return message.reply('💸 **Saldo bank tidak cukup!**');
 
-            // Withdraw fee: 1% (Money Sink)
-            const fee = Math.floor(amount * 0.01);
-            const netAmount = amount - fee;
+            // --- DAILY WITHDRAW LIMIT CHECK ---
+            const DAILY_WITHDRAW_LIMIT = 10000000; // 10 Juta per hari
+            const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+            
+            const bankData = db.prepare('SELECT * FROM user_banking WHERE user_id = ?').get(userId);
+            let dailyWithdrawTotal = bankData?.daily_withdraw_total || 0;
+            const lastWithdrawDay = bankData?.last_withdraw_day;
+
+            // Reset limit if new day
+            if (lastWithdrawDay !== today) {
+                db.prepare('UPDATE user_banking SET daily_withdraw_total = 0, last_withdraw_day = ? WHERE user_id = ?').run(today, userId);
+                dailyWithdrawTotal = 0;
+            }
+
+            // Check daily limit
+            if ((dailyWithdrawTotal + amount) > DAILY_WITHDRAW_LIMIT) {
+                const sisaLimit = DAILY_WITHDRAW_LIMIT - dailyWithdrawTotal;
+                return message.reply(`🚫 **Limit Withdraw Harian Tercapai!**\nLimit harian: Rp ${formatMoney(DAILY_WITHDRAW_LIMIT)}\nSisa limit hari ini: Rp ${formatMoney(sisaLimit)}\nKamu mencoba withdraw: Rp ${formatMoney(amount)}\n\n💡 Coba lagi besok atau withdraw maksimal Rp ${formatMoney(sisaLimit)}`);
+            }
 
             const result = db.withdrawFromBank(userId, amount);
             if (!result.success) {
                 return message.reply(`❌ **Gagal:** ${result.error}`);
             }
 
-            // Add net amount to main balance (fee is money sink)
-            db.updateBalance(userId, netAmount);
+            // Update daily withdraw total
+            db.prepare('UPDATE user_banking SET daily_withdraw_total = daily_withdraw_total + ?, last_withdraw_day = ? WHERE user_id = ?').run(amount, today, userId);
 
-            return message.reply(`✅ **Withdraw Berhasil!**\n💰 Diambil: Rp ${formatMoney(amount)}\n💸 **Fee:** Rp ${formatMoney(fee)} (1%)\n💰 **Diterima:** Rp ${formatMoney(netAmount)}\n🏦 Sisa Saldo Bank: Rp ${formatMoney(bankBalance - amount)}`);
+            // Add full amount to main balance (no fee)
+            db.updateBalance(userId, amount);
+
+            const newDailyTotal = dailyWithdrawTotal + amount;
+            const remainingLimit = DAILY_WITHDRAW_LIMIT - newDailyTotal;
+
+            return message.reply(`✅ **Withdraw Berhasil!**\n💰 Diambil: Rp ${formatMoney(amount)}\n🏦 Sisa Saldo Bank: Rp ${formatMoney(bankBalance - amount)}\n\n📊 **Limit Harian:** Rp ${formatMoney(newDailyTotal)} / ${formatMoney(DAILY_WITHDRAW_LIMIT)}\n💡 Sisa limit hari ini: Rp ${formatMoney(remainingLimit)}`);
         }
 
         // !bank loan <amount>

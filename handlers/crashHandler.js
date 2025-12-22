@@ -4,9 +4,11 @@ const missionHandler = require('./missionHandler.js');
 
 // Active Crash Games
 // Key: messageId
-// Value: { userId, bet, multiplier, crashPoint, interval, isCashedOut, messageId }
+// Value: { userId, bet, multiplier, crashPoint, interval, isCashedOut, messageId, lastWarning }
 const activeCrash = new Map();
 const crashCooldowns = new Map();
+// Combo system for consecutive cashouts
+const crashCombo = new Map(); // userId -> { count, lastCashout }
 
 module.exports = {
     activeCrash,
@@ -51,45 +53,66 @@ module.exports = {
         const updateRes = db.updateBalance(userId, -bet);
         const walletType = updateRes.wallet === 'event' ? '🎟️ Event' : '💰 Utama';
         missionHandler.trackMission(userId, 'play_crash');
+        
+        // TRACK STATS
+        db.trackGamePlay(userId, 'saham', false);
 
         // Calculate Crash Point
-        // Algorithm: 6% instant crash (1.00x), then exponential distribution
-        // House Edge: ~8% (built into distribution) - BALANCED for less easy wins
+        // Algorithm: More instant crash + weighted distribution for more crashes at 1-2x
+        // House Edge: ~12% (built into distribution) - HARDER to prevent spam
         
         const r = Math.random();
         let crashPoint = 1.00;
 
-        if (r < 0.07) {
-            // 7% chance of instant crash (1.00x) - CHALLENGING BUT FUN
+        if (r < 0.12) {
+            // 12% chance of instant crash (1.00x) - INCREASED to prevent spam
             crashPoint = 1.00;
+        } else if (r < 0.45) {
+            // 33% chance of crash between 1.0x - 2.0x (after instant crash)
+            // This makes 45% total chance to crash at 1.0x - 2.0x
+            const adjustedRandom = (r - 0.12) / 0.33; // Normalize to 0-1 range
+            // Linear distribution from 1.0x to 2.0x
+            crashPoint = 1.0 + (adjustedRandom * 1.0); // 1.0x to 2.0x
+            crashPoint = Math.floor(crashPoint * 100) / 100;
         } else {
-            // Exponential distribution with house edge
-            // Formula: crashPoint = 1 + (maxMultiplier - 1) * (1 - r^houseEdge)
-            // Simplified: Use weighted distribution for better game feel
-            const houseEdge = 0.90; // 10% house edge - Increased for more challenge
+            // Remaining 55% chance: exponential distribution for higher multipliers
+            // But still weighted towards lower multipliers
+            const houseEdge = 0.88; // 12% house edge - Increased for more challenge
             const maxMultiplier = 100;
-            const adjustedRandom = (r - 0.07) / 0.93; // Normalize to 0-1 range (after removing 7% instant crash)
+            const adjustedRandom = (r - 0.45) / 0.55; // Normalize to 0-1 range
             
             // Exponential-like distribution: lower values more common
             // Using: 1 + (max - 1) * (1 - (1 - adjustedRandom)^power)
-            // Power < 1 makes lower multipliers more common
             // Lower power = more crashes at low multiplier (harder to win)
-            const power = 0.4; // Further reduced from 0.45 - Makes low multipliers even more common
+            const power = 0.25; // Further reduced from 0.4 - Makes low multipliers MUCH more common
             const baseMultiplier = 1 + (maxMultiplier - 1) * (1 - Math.pow(1 - adjustedRandom, power));
             crashPoint = Math.floor(baseMultiplier * houseEdge * 100) / 100;
             
-            // Ensure minimum is 1.05x (after instant crash)
-            if (crashPoint < 1.05) crashPoint = 1.05;
+            // Ensure minimum is 2.0x (after low range crash)
+            if (crashPoint < 2.0) crashPoint = 2.0;
         }
 
         // Cap at 100x for safety in this bot economy
         if (crashPoint > 100) crashPoint = 100;
 
-        // Initial UI
+        // Initial UI dengan visual enhancement
         const embed = new EmbedBuilder()
             .setTitle('📈 SAHAM GORENGAN (Crash)')
-            .setDescription(`Bet: **Rp ${bet.toLocaleString('id-ID')}**\n\n# 1.00x\n\n*Siap-siap JUAL sebelum anjlok!*`)
-            .setColor('#00FF00');
+            .setDescription(
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                `💰 **Bet:** Rp ${bet.toLocaleString('id-ID')}\n` +
+                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                `# 🟢 **1.00x**\n\n` +
+                `*Siap-siap JUAL sebelum anjlok!*\n` +
+                `⚠️ **Warning:** Saham bisa crash kapan saja!`
+            )
+            .setColor('#00FF00')
+            .setAuthor({ 
+                name: message.author.username, 
+                iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+            })
+            .setFooter({ text: '📈 Warung Mang Ujang : Reborn' })
+            .setTimestamp();
 
         const row = new ActionRowBuilder().addComponents(
             new ButtonBuilder()
@@ -109,7 +132,8 @@ module.exports = {
             isCashedOut: false,
             messageId: msg.id,
             startTime: Date.now(),
-            walletType
+            walletType,
+            lastWarning: 0 // Track last warning time to prevent spam
         };
 
         // Start Loop with error handling
@@ -142,18 +166,41 @@ module.exports = {
                     return;
                 } else {
                     game.multiplier = nextMult;
-                    // Update Message (Rate Limit handling: only update if change is significant or every 2s)
-                    // Discord rate limit is 5 edits/5s per channel? Or per message?
-                    // Safe bet: Update every 2-3 seconds.
-
-                    // For smoother feel, we might skip some edits if too fast.
-                    // But setInterval is already controlling timing.
-
+                    
+                    // WARNING SYSTEM - TRYHARD FEATURE
+                    const warning = this.getWarning(game.multiplier, game.crashPoint);
+                    const color = this.getWarningColor(game.multiplier);
+                    
                     try {
+                        let warningText = '';
+                        const now = Date.now();
+                        // Show warning every 3 seconds to prevent spam
+                        if (warning && (now - game.lastWarning > 3000)) {
+                            warningText = `\n\n${warning}`;
+                            game.lastWarning = now;
+                        }
+
+                        // Dynamic multiplier display dengan emoji
+                        const multEmoji = game.multiplier >= 5.0 ? '🟢' : game.multiplier >= 2.0 ? '🟡' : '🟠';
+                        const multBar = multEmoji.repeat(Math.min(10, Math.floor(game.multiplier)));
+                        
                         const newEmbed = new EmbedBuilder()
                             .setTitle('📈 SAHAM GORENGAN (Crash)')
-                            .setDescription(`Bet: **Rp ${game.bet.toLocaleString('id-ID')}**\n\n# ${game.multiplier.toFixed(2)}x\n\n*Naik terus!*`)
-                            .setColor('#00FF00');
+                            .setDescription(
+                                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                `💰 **Bet:** Rp ${game.bet.toLocaleString('id-ID')}\n` +
+                                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                                `# ${multEmoji} **${game.multiplier.toFixed(2)}x**\n` +
+                                `${multBar}\n${warningText}\n\n` +
+                                `*Naik terus! Jual sebelum crash!*`
+                            )
+                            .setColor(color)
+                            .setAuthor({ 
+                                name: message.author.username, 
+                                iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                            })
+                            .setFooter({ text: '📈 Warung Mang Ujang : Reborn' })
+                            .setTimestamp();
 
                         await msg.edit({ embeds: [newEmbed] });
                     } catch (e) {
@@ -178,33 +225,146 @@ module.exports = {
     async handleInteraction(interaction) {
         if (!interaction.customId.startsWith('crash_')) return;
 
-        const game = activeCrash.get(interaction.message.id);
-        if (!game) return interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+        try {
+            const game = activeCrash.get(interaction.message.id);
+            if (!game) {
+                if (interaction.deferred || interaction.replied) {
+                    return interaction.editReply({ content: '❌ Game sudah berakhir.' });
+                }
+                return interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+            }
 
-        if (interaction.user.id !== game.userId) {
-            return interaction.reply({ content: '❌ Bukan saham kamu!', flags: [MessageFlags.Ephemeral] });
-        }
+            if (interaction.user.id !== game.userId) {
+                if (interaction.deferred || interaction.replied) {
+                    return interaction.editReply({ content: '❌ Bukan saham kamu!' });
+                }
+                return interaction.reply({ content: '❌ Bukan saham kamu!', flags: [MessageFlags.Ephemeral] });
+            }
 
-        if (interaction.customId === 'crash_cashout') {
-            if (game.isCashedOut) return;
+            if (interaction.customId === 'crash_cashout') {
+                if (game.isCashedOut) {
+                    if (interaction.deferred || interaction.replied) {
+                        return interaction.editReply({ content: '❌ Sudah di-cashout!' });
+                    }
+                    return interaction.reply({ content: '❌ Sudah di-cashout!', flags: [MessageFlags.Ephemeral] });
+                }
             game.isCashedOut = true;
             if (game.interval) {
                 clearInterval(game.interval);
                 game.interval = null;
             }
 
-            const winAmount = Math.floor(game.bet * game.multiplier);
+            // COMBO SYSTEM - Track consecutive cashouts
+            const combo = crashCombo.get(game.userId) || { count: 0, lastCashout: 0 };
+            const now = Date.now();
+            // Reset combo if last cashout was more than 5 minutes ago
+            if (now - combo.lastCashout > 5 * 60 * 1000) {
+                combo.count = 0;
+            }
+            
+            // Check if this is a combo (cashout at 2x+)
+            let comboBonus = 0;
+            let comboText = '';
+            if (game.multiplier >= 2.0) {
+                combo.count++;
+                combo.lastCashout = now;
+                crashCombo.set(game.userId, combo);
+                
+                // TRACK STATS - Update best combo
+                const isNewRecord = db.updateBestCombo(game.userId, 'saham', combo.count);
+                let achievementUnlocked = false;
+                if (isNewRecord && combo.count >= 3) {
+                    // Check achievements
+                    const achievementHandler = require('./achievementHandler.js');
+                    const unlocked = await achievementHandler.checkAchievements(game.userId);
+                    if (unlocked.length > 0) {
+                        achievementUnlocked = true;
+                    }
+                }
+                
+                // Combo bonus: 3+ consecutive cashouts at 2x+ = bonus
+                if (combo.count >= 3) {
+                    comboBonus = 0.10; // +10% bonus for 3+ combo
+                    comboText = `\n🔥 **COMBO x${combo.count}** (+${(comboBonus * 100).toFixed(0)}% bonus)`;
+                    if (isNewRecord) {
+                        comboText += `\n🎉 **NEW RECORD!** Best Combo: ${combo.count}x!`;
+                    }
+                }
+            } else {
+                // Reset combo if cashout below 2x
+                combo.count = 0;
+                crashCombo.set(game.userId, combo);
+            }
+
+            const baseWin = Math.floor(game.bet * game.multiplier);
+            const winAmount = Math.floor(baseWin * (1 + comboBonus));
             db.updateBalance(game.userId, winAmount);
+            
+            // TRACK STATS
+            db.trackGamePlay(game.userId, 'saham', true);
+            
+            // Check achievements (total wins)
+            try {
+                const achievementHandler = require('./achievementHandler.js');
+                const unlocked = await achievementHandler.checkAchievements(game.userId);
+                
+                // Celebrate milestones
+                const stats = db.getUserStats(game.userId);
+                const celebrationHandler = require('./celebrationHandler.js');
+                const user = await interaction.client.users.fetch(game.userId).catch(() => null);
+                if (user) {
+                    await celebrationHandler.checkMilestones(game.userId, interaction.channel, user, stats);
+                    
+                    // Celebrate achievement unlock
+                    if (unlocked.length > 0) {
+                        for (const ach of unlocked) {
+                            await celebrationHandler.celebrateAchievement(
+                                interaction.channel, 
+                                user, 
+                                ach.name, 
+                                ach.reward
+                            );
+                        }
+                    }
+                    
+                    // Celebrate combo milestones
+                    if (combo.count === 10 || combo.count === 20) {
+                        await celebrationHandler.celebrateCombo(interaction.channel, user, 'saham', combo.count);
+                    }
+                    
+                    // Celebrate big win
+                    if (winAmount >= 10000000) {
+                        await celebrationHandler.celebrateBigWin(interaction.channel, user, winAmount, game.multiplier);
+                    }
+                }
+            } catch (e) {
+                console.error('[CRASH ACHIEVEMENT ERROR]', e);
+            }
             
             // Track Mission - Win Crash
             missionHandler.trackMission(game.userId, 'win_crash');
 
+            // Status badge berdasarkan multiplier
+            const multBadge = game.multiplier >= 5.0 ? '🟢 [HIGH]' : game.multiplier >= 2.0 ? '🟡 [MEDIUM]' : '🟠 [LOW]';
+            
             const embed = new EmbedBuilder()
                 .setTitle('💰 PROFIT SUKSES!')
-                .setDescription(`Kamu berhasil JUAL di angka **${game.multiplier.toFixed(2)}x**!\nWin: **Rp ${winAmount.toLocaleString('id-ID')}**\n*${game.walletType}*`)
+                .setDescription(
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `✅ **JUAL SUKSES!** ${multBadge}\n` +
+                    `📈 **Multiplier:** ${game.multiplier.toFixed(2)}x\n` +
+                    `💰 **Win:** Rp ${winAmount.toLocaleString('id-ID')}${comboText}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `*${game.walletType}*`
+                )
                 .setColor('#00FF00')
-                .setFooter({ text: `History: ${this.getHistoryString()}` });
-
+                .setAuthor({ 
+                    name: message.author.username, 
+                    iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                })
+                .setFooter({ text: `📈 Warung Mang Ujang : Reborn • History: ${this.getHistoryString()}` })
+                .setTimestamp();
+            
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
                     .setCustomId('crash_disabled')
@@ -213,8 +373,37 @@ module.exports = {
                     .setDisabled(true)
             );
 
-            await interaction.update({ embeds: [embed], components: [row] });
+            // Use update if not replied, otherwise editReply
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ embeds: [embed], components: [row] });
+            } else {
+                await interaction.update({ embeds: [embed], components: [row] });
+            }
+            
             activeCrash.delete(interaction.message.id);
+            
+            // Show achievement notification if unlocked (after update/editReply)
+            if (achievementUnlocked) {
+                try {
+                    await interaction.followUp({ 
+                        content: '🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!', 
+                        flags: [MessageFlags.Ephemeral]
+                    });
+                } catch (e) {
+                    console.error('[CRASH FOLLOWUP ERROR]', e);
+                }
+            }
+        } catch (error) {
+            console.error('[CRASH INTERACTION ERROR]', error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses cashout. Silakan coba lagi.' });
+                } else {
+                    await interaction.reply({ content: '❌ **Error:** Gagal memproses cashout. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
+                }
+            } catch (e) {
+                console.error('[CRASH ERROR HANDLING FAILED]', e);
+            }
         }
     },
 
@@ -228,9 +417,21 @@ module.exports = {
         if (isCrash) {
             const embed = new EmbedBuilder()
                 .setTitle('📉 CRASH! ANJLOK!')
-                .setDescription(`Saham anjlok di angka **${game.crashPoint.toFixed(2)}x**.\nUang **Rp ${game.bet.toLocaleString('id-ID')}** hangus.\n*${game.walletType}*`)
+                .setDescription(
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `❌ **CRASH!** 🔴 [FAILED]\n` +
+                    `📉 **Crash Point:** ${game.crashPoint.toFixed(2)}x\n` +
+                    `💸 **Loss:** Rp ${game.bet.toLocaleString('id-ID')}\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `*${game.walletType}*`
+                )
                 .setColor('#FF0000')
-                .setFooter({ text: `History: ${this.getHistoryString()}` });
+                .setAuthor({ 
+                    name: message.author?.username || 'Unknown', 
+                    iconURL: message.author?.displayAvatarURL({ dynamic: true }) || undefined
+                })
+                .setFooter({ text: `📈 Warung Mang Ujang : Reborn • History: ${this.getHistoryString()}` })
+                .setTimestamp();
 
             const row = new ActionRowBuilder().addComponents(
                 new ButtonBuilder()
@@ -257,5 +458,43 @@ module.exports = {
     getHistoryString() {
         if (this.crashHistory.length === 0) return '-';
         return this.crashHistory.map(m => `${m.toFixed(2)}x`).join(' | ');
+    },
+
+    // WARNING SYSTEM - TRYHARD FEATURE
+    getWarning(multiplier, crashPoint) {
+        // Random fake warnings for tension (30% chance)
+        const fakeWarningChance = 0.3;
+        const warnings = [
+            '⚠️ **Saham mulai tidak stabil!**',
+            '⚠️ **Hati-hati, volatilitas tinggi!**',
+            '⚠️ **Peringatan: Risiko meningkat!**'
+        ];
+
+        // Zone-based warnings
+        if (multiplier >= 5.0) {
+            // Extreme zone - Real danger
+            return '🔴 **ZONA EKSTREM!** Cashout sekarang atau risiko tinggi!';
+        } else if (multiplier >= 3.0) {
+            // Danger zone
+            if (Math.random() < fakeWarningChance) {
+                return warnings[Math.floor(Math.random() * warnings.length)];
+            }
+            return '🟠 **ZONA BAHAYA!** Pertimbangkan cashout!';
+        } else if (multiplier >= 1.5) {
+            // Caution zone
+            if (Math.random() < fakeWarningChance) {
+                return warnings[Math.floor(Math.random() * warnings.length)];
+            }
+            return '🟡 **ZONA PERINGATAN** - Tetap waspada!';
+        }
+        // Safe zone - no warning
+        return null;
+    },
+
+    getWarningColor(multiplier) {
+        if (multiplier >= 5.0) return '#FF0000'; // Red - Extreme
+        if (multiplier >= 3.0) return '#FF6600'; // Orange - Danger
+        if (multiplier >= 1.5) return '#FFAA00'; // Yellow - Caution
+        return '#00FF00'; // Green - Safe
     }
 };

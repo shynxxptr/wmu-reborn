@@ -186,12 +186,16 @@ db.getUsersWithActiveLimiter = () => {
         
         // Filter to only active limiters (balance >= threshold for their level)
         const levels = [
-            { limit: 100000000, duration: 6 * 3600 * 1000 },   // 100 Juta - 6 Jam
-            { limit: 500000000, duration: 12 * 3600 * 1000 },  // 500 Juta - 12 Jam
-            { limit: 1000000000, duration: 24 * 3600 * 1000 }, // 1 Milyar - 24 Jam
-            { limit: 10000000000, duration: 48 * 3600 * 1000 },// 10 Milyar - 2 Hari
-            { limit: 50000000000, duration: 72 * 3600 * 1000 },// 50 Milyar - 3 Hari
-            { limit: 100000000000, duration: 120 * 3600 * 1000 }// 100 Milyar - 5 Hari
+            { limit: 100000000, duration: 6 * 3600 * 1000 },      // 100 Juta - 6 Jam
+            { limit: 500000000, duration: 12 * 3600 * 1000 },    // 500 Juta - 12 Jam
+            { limit: 1000000000, duration: 24 * 3600 * 1000 },    // 1 Milyar - 24 Jam
+            { limit: 10000000000, duration: 48 * 3600 * 1000 },   // 10 Milyar - 2 Hari
+            { limit: 50000000000, duration: 72 * 3600 * 1000 },  // 50 Milyar - 3 Hari
+            { limit: 100000000000, duration: 120 * 3600 * 1000 }, // 100 Milyar - 5 Hari
+            { limit: 500000000000, duration: 168 * 3600 * 1000 }, // 500 Milyar - 7 Hari
+            { limit: 1000000000000, duration: 240 * 3600 * 1000 }, // 1 Triliun - 10 Hari
+            { limit: 5000000000000, duration: 336 * 3600 * 1000 }, // 5 Triliun - 14 Hari
+            { limit: 10000000000000, duration: 480 * 3600 * 1000 }  // 10 Triliun - 20 Hari
         ];
         
         const active = [];
@@ -348,9 +352,74 @@ db.exec(`
         total_alcohol INTEGER DEFAULT 0,
         unique_transfers TEXT DEFAULT '[]',
         consecutive_wins INTEGER DEFAULT 0,
-        highest_balance INTEGER DEFAULT 0
+        highest_balance INTEGER DEFAULT 0,
+        -- TRYHARD STATS TRACKING
+        best_combo_bom INTEGER DEFAULT 0,
+        best_combo_math INTEGER DEFAULT 0,
+        best_combo_saham INTEGER DEFAULT 0,
+        best_streak_coinflip INTEGER DEFAULT 0,
+        best_timing_slots REAL DEFAULT 0,
+        total_games_bom INTEGER DEFAULT 0,
+        total_games_math INTEGER DEFAULT 0,
+        total_games_saham INTEGER DEFAULT 0,
+        total_games_coinflip INTEGER DEFAULT 0,
+        total_games_slots INTEGER DEFAULT 0,
+        total_games_bigslot INTEGER DEFAULT 0,
+        total_wins_bom INTEGER DEFAULT 0,
+        total_wins_math INTEGER DEFAULT 0,
+        total_wins_saham INTEGER DEFAULT 0,
+        total_wins_coinflip INTEGER DEFAULT 0,
+        total_wins_slots INTEGER DEFAULT 0,
+        total_wins_bigslot INTEGER DEFAULT 0
     )
 `);
+
+// MIGRATION: Add columns if not exist
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN best_combo_bom INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN best_combo_math INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN best_combo_saham INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN best_streak_coinflip INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN best_timing_slots REAL DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_games_bom INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_games_math INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_games_saham INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_games_coinflip INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_games_slots INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_games_bigslot INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_wins_bom INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_wins_math INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_wins_saham INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_wins_coinflip INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_wins_slots INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_stats ADD COLUMN total_wins_bigslot INTEGER DEFAULT 0').run(); } catch (e) { }
+
+// Ensure all columns exist (defensive check)
+try {
+    const columns = db.prepare("PRAGMA table_info(user_stats)").all();
+    const columnNames = columns.map(c => c.name);
+    const requiredColumns = [
+        'best_combo_bom', 'best_combo_math', 'best_combo_saham',
+        'best_streak_coinflip', 'best_timing_slots',
+        'total_games_bom', 'total_games_math', 'total_games_saham',
+        'total_games_coinflip', 'total_games_slots', 'total_games_bigslot',
+        'total_wins_bom', 'total_wins_math', 'total_wins_saham',
+        'total_wins_coinflip', 'total_wins_slots', 'total_wins_bigslot'
+    ];
+    
+    for (const col of requiredColumns) {
+        if (!columnNames.includes(col)) {
+            console.warn(`[DB MIGRATION] Missing column: ${col}, attempting to add...`);
+            try {
+                const colType = col.includes('timing') ? 'REAL' : 'INTEGER';
+                db.prepare(`ALTER TABLE user_stats ADD COLUMN ${col} ${colType} DEFAULT 0`).run();
+            } catch (e) {
+                console.error(`[DB MIGRATION] Failed to add column ${col}:`, e.message);
+            }
+        }
+    }
+} catch (e) {
+    console.error('[DB MIGRATION CHECK ERROR]', e);
+}
 
 // --- INISIALISASI DATA ---
 const { TIKET_CONFIG } = require('./utils/helpers.js');
@@ -612,6 +681,53 @@ db.exec(`
         action_type TEXT NOT NULL,
         last_used INTEGER NOT NULL,
         PRIMARY KEY (user_id, action_type)
+    )
+`);
+
+// LUXURY ITEMS BUFFS - Track active buffs from consumable luxury items
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_luxury_buffs (
+        user_id TEXT NOT NULL,
+        buff_type TEXT NOT NULL,
+        buff_value REAL,
+        expires_at INTEGER NOT NULL,
+        PRIMARY KEY (user_id, buff_type)
+    )
+`);
+
+// GENG SYSTEM (Guild/School Gang)
+db.exec(`
+    CREATE TABLE IF NOT EXISTS gengs (
+        geng_id TEXT PRIMARY KEY,
+        geng_name TEXT NOT NULL,
+        leader_id TEXT NOT NULL,
+        level INTEGER DEFAULT 1,
+        bank_balance INTEGER DEFAULT 0,
+        created_at INTEGER NOT NULL,
+        weekly_upkeep_paid INTEGER DEFAULT 0,
+        last_upkeep_date INTEGER
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS geng_members (
+        geng_id TEXT NOT NULL,
+        user_id TEXT NOT NULL,
+        role TEXT DEFAULT 'member',
+        joined_at INTEGER NOT NULL,
+        PRIMARY KEY (geng_id, user_id),
+        FOREIGN KEY (geng_id) REFERENCES gengs(geng_id)
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS geng_buffs (
+        geng_id TEXT NOT NULL,
+        buff_type TEXT NOT NULL,
+        buff_value REAL,
+        expires_at INTEGER NOT NULL,
+        PRIMARY KEY (geng_id, buff_type),
+        FOREIGN KEY (geng_id) REFERENCES gengs(geng_id)
     )
 `);
 
@@ -1044,9 +1160,15 @@ db.exec(`
         loan_interest_rate REAL DEFAULT 0.02,
         loan_start_time INTEGER DEFAULT 0,
         loan_due_time INTEGER DEFAULT 0,
-        last_maintenance_time INTEGER DEFAULT 0
+        last_maintenance_time INTEGER DEFAULT 0,
+        daily_withdraw_total INTEGER DEFAULT 0,
+        last_withdraw_day TEXT DEFAULT NULL
     )
 `);
+
+// Add columns if they don't exist (migration)
+try { db.prepare('ALTER TABLE user_banking ADD COLUMN daily_withdraw_total INTEGER DEFAULT 0').run(); } catch (e) { }
+try { db.prepare('ALTER TABLE user_banking ADD COLUMN last_withdraw_day TEXT DEFAULT NULL').run(); } catch (e) { }
 
 // Banking Functions
 db.getBankBalance = (userId) => {
@@ -1146,6 +1268,414 @@ db.payLoan = (userId, amount) => {
         return { success: true, interest: interest, daysElapsed: daysElapsed };
     } catch (e) {
         return { success: false, error: e.message };
+    }
+};
+
+// --- COMPENSATION SYSTEM ---
+db.exec(`
+    CREATE TABLE IF NOT EXISTS compensation_claimed (
+        user_id TEXT PRIMARY KEY,
+        package_type TEXT DEFAULT 'base',
+        claimed_at INTEGER NOT NULL
+    )
+`);
+
+db.exec(`
+    CREATE TABLE IF NOT EXISTS user_compensation (
+        user_id TEXT PRIMARY KEY,
+        package_type TEXT DEFAULT 'base',
+        set_at INTEGER NOT NULL
+    )
+`);
+
+// --- STATS TRACKING HELPERS ---
+db.getUserStats = (userId) => {
+    try {
+        let stats = db.prepare('SELECT * FROM user_stats WHERE user_id = ?').get(userId);
+        if (!stats) {
+            db.prepare('INSERT INTO user_stats (user_id) VALUES (?)').run(userId);
+            stats = db.prepare('SELECT * FROM user_stats WHERE user_id = ?').get(userId);
+        }
+        return stats;
+    } catch (e) {
+        return null;
+    }
+};
+
+db.updateUserStats = (userId, updates) => {
+    try {
+        const stats = db.getUserStats(userId);
+        if (!stats) return false;
+        
+        const setClause = Object.keys(updates).map(k => `${k} = ?`).join(', ');
+        const values = Object.values(updates);
+        values.push(userId);
+        
+        db.prepare(`UPDATE user_stats SET ${setClause} WHERE user_id = ?`).run(...values);
+        return true;
+    } catch (e) {
+        console.error('[STATS UPDATE ERROR]', e);
+        return false;
+    }
+};
+
+db.trackGamePlay = (userId, gameType, isWin = false) => {
+    try {
+        const stats = db.getUserStats(userId);
+        const updates = {};
+        updates[`total_games_${gameType}`] = (stats?.[`total_games_${gameType}`] || 0) + 1;
+        if (isWin) {
+            updates[`total_wins_${gameType}`] = (stats?.[`total_wins_${gameType}`] || 0) + 1;
+        }
+        db.updateUserStats(userId, updates);
+    } catch (e) {
+        console.error('[TRACK GAME ERROR]', e);
+    }
+};
+
+db.updateBestCombo = (userId, gameType, comboCount) => {
+    try {
+        const stats = db.getUserStats(userId);
+        const currentBest = stats?.[`best_combo_${gameType}`] || 0;
+        if (comboCount > currentBest) {
+            db.updateUserStats(userId, { [`best_combo_${gameType}`]: comboCount });
+            return true; // New record!
+        }
+        return false;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.updateBestStreak = (userId, gameType, streakCount) => {
+    try {
+        const stats = db.getUserStats(userId);
+        const currentBest = stats?.[`best_streak_${gameType}`] || 0;
+        if (streakCount > currentBest) {
+            db.updateUserStats(userId, { [`best_streak_${gameType}`]: streakCount });
+            return true; // New record!
+        }
+        return false;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.updateBestTiming = (userId, gameType, timingScore) => {
+    try {
+        const stats = db.getUserStats(userId);
+        const currentBest = stats?.[`best_timing_${gameType}`] || 0;
+        if (timingScore > currentBest) {
+            db.updateUserStats(userId, { [`best_timing_${gameType}`]: timingScore });
+            return true; // New record!
+        }
+        return false;
+    } catch (e) {
+        return false;
+    }
+};
+
+// --- ACHIEVEMENT HELPERS ---
+db.getUserAchievements = (userId) => {
+    try {
+        return db.prepare('SELECT * FROM user_achievements WHERE user_id = ?').all(userId);
+    } catch (e) {
+        return [];
+    }
+};
+
+db.hasAchievement = (userId, achievementId) => {
+    try {
+        const row = db.prepare('SELECT * FROM user_achievements WHERE user_id = ? AND achievement_id = ?').get(userId, achievementId);
+        return !!row;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.unlockAchievement = (userId, achievementId) => {
+    try {
+        const exists = db.hasAchievement(userId, achievementId);
+        if (!exists) {
+            db.prepare('INSERT INTO user_achievements (user_id, achievement_id, unlocked_at, claimed) VALUES (?, ?, ?, 0)')
+                .run(userId, achievementId, Date.now());
+            return true; // New achievement!
+        }
+        return false;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.claimAchievement = (userId, achievementId) => {
+    try {
+        db.prepare('UPDATE user_achievements SET claimed = 1 WHERE user_id = ? AND achievement_id = ?').run(userId, achievementId);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+// --- LUXURY BUFFS HELPERS ---
+db.addLuxuryBuff = (userId, buffType, buffValue, durationMs) => {
+    try {
+        const expiresAt = Date.now() + durationMs;
+        db.prepare(`
+            INSERT INTO user_luxury_buffs (user_id, buff_type, buff_value, expires_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(user_id, buff_type) DO UPDATE SET
+                buff_value = ?,
+                expires_at = ?
+        `).run(userId, buffType, buffValue, expiresAt, buffValue, expiresAt);
+        return true;
+    } catch (e) {
+        console.error('Error adding luxury buff:', e);
+        return false;
+    }
+};
+
+db.getLuxuryBuffs = (userId) => {
+    try {
+        const now = Date.now();
+        // Clean expired buffs
+        db.prepare('DELETE FROM user_luxury_buffs WHERE user_id = ? AND expires_at < ?').run(userId, now);
+        // Get active buffs
+        return db.prepare('SELECT * FROM user_luxury_buffs WHERE user_id = ? AND expires_at > ?').all(userId, now);
+    } catch (e) {
+        return [];
+    }
+};
+
+db.getLuxuryBuff = (userId, buffType) => {
+    try {
+        const now = Date.now();
+        const buff = db.prepare('SELECT * FROM user_luxury_buffs WHERE user_id = ? AND buff_type = ? AND expires_at > ?')
+            .get(userId, buffType, now);
+        return buff;
+    } catch (e) {
+        return null;
+    }
+};
+
+// --- GENG HELPERS ---
+db.createGeng = (gengId, gengName, leaderId) => {
+    try {
+        db.prepare(`
+            INSERT INTO gengs (geng_id, geng_name, leader_id, created_at)
+            VALUES (?, ?, ?, ?)
+        `).run(gengId, gengName, leaderId, Date.now());
+        
+        // Add leader as member
+        db.prepare(`
+            INSERT INTO geng_members (geng_id, user_id, role, joined_at)
+            VALUES (?, ?, 'leader', ?)
+        `).run(gengId, leaderId, Date.now());
+        
+        return true;
+    } catch (e) {
+        console.error('Error creating geng:', e);
+        return false;
+    }
+};
+
+db.getGeng = (gengId) => {
+    try {
+        return db.prepare('SELECT * FROM gengs WHERE geng_id = ?').get(gengId);
+    } catch (e) {
+        return null;
+    }
+};
+
+db.getGengByName = (gengName) => {
+    try {
+        return db.prepare('SELECT * FROM gengs WHERE geng_name = ?').get(gengName);
+    } catch (e) {
+        return null;
+    }
+};
+
+db.getUserGeng = (userId) => {
+    try {
+        const member = db.prepare('SELECT * FROM geng_members WHERE user_id = ?').get(userId);
+        if (!member) return null;
+        const geng = db.getGeng(member.geng_id);
+        return { ...geng, role: member.role };
+    } catch (e) {
+        return null;
+    }
+};
+
+db.addGengMember = (gengId, userId) => {
+    try {
+        db.prepare(`
+            INSERT INTO geng_members (geng_id, user_id, role, joined_at)
+            VALUES (?, ?, 'member', ?)
+        `).run(gengId, userId, Date.now());
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.removeGengMember = (gengId, userId) => {
+    try {
+        db.prepare('DELETE FROM geng_members WHERE geng_id = ? AND user_id = ?').run(gengId, userId);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.getGengMembers = (gengId) => {
+    try {
+        return db.prepare('SELECT * FROM geng_members WHERE geng_id = ?').all(gengId);
+    } catch (e) {
+        return [];
+    }
+};
+
+db.updateGengBank = (gengId, amount) => {
+    try {
+        db.prepare('UPDATE gengs SET bank_balance = bank_balance + ? WHERE geng_id = ?').run(amount, gengId);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.upgradeGeng = (gengId) => {
+    try {
+        const geng = db.getGeng(gengId);
+        if (!geng) return false;
+        const newLevel = geng.level + 1;
+        db.prepare('UPDATE gengs SET level = ? WHERE geng_id = ?').run(newLevel, gengId);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.payGengUpkeep = (gengId) => {
+    try {
+        const now = Date.now();
+        db.prepare('UPDATE gengs SET weekly_upkeep_paid = 1, last_upkeep_date = ? WHERE geng_id = ?')
+            .run(now, gengId);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.addGengBuff = (gengId, buffType, buffValue, durationMs) => {
+    try {
+        const expiresAt = Date.now() + durationMs;
+        db.prepare(`
+            INSERT INTO geng_buffs (geng_id, buff_type, buff_value, expires_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(geng_id, buff_type) DO UPDATE SET
+                buff_value = ?,
+                expires_at = ?
+        `).run(gengId, buffType, buffValue, expiresAt, buffValue, expiresAt);
+        return true;
+    } catch (e) {
+        return false;
+    }
+};
+
+db.getGengBuffs = (gengId) => {
+    try {
+        const now = Date.now();
+        db.prepare('DELETE FROM geng_buffs WHERE geng_id = ? AND expires_at < ?').run(gengId, now);
+        return db.prepare('SELECT * FROM geng_buffs WHERE geng_id = ? AND expires_at > ?').all(gengId, now);
+    } catch (e) {
+        return [];
+    }
+};
+
+// Weekly upkeep system
+db.processGengUpkeep = () => {
+    try {
+        // Avoid circular dependency - hardcode config values
+        const WEEKLY_UPKEEP = {
+            1: 100_000,
+            2: 250_000,
+            3: 500_000,
+            4: 1_000_000,
+            5: 2_000_000
+        };
+        
+        const allGengs = db.prepare('SELECT * FROM gengs').all();
+        const now = Date.now();
+        const oneWeek = 7 * 24 * 60 * 60 * 1000; // 7 days in ms
+        const results = { processed: 0, disbanded: 0, paid: 0 };
+
+        allGengs.forEach(geng => {
+            const lastUpkeep = geng.last_upkeep_date || geng.created_at;
+            const timeSinceUpkeep = now - lastUpkeep;
+
+            // Check if a week has passed
+            if (timeSinceUpkeep >= oneWeek) {
+                const upkeepCost = WEEKLY_UPKEEP[geng.level] || WEEKLY_UPKEEP[1];
+                const bankBalance = geng.bank_balance || 0;
+
+                if (bankBalance >= upkeepCost) {
+                    // Deduct from bank
+                    db.updateGengBank(geng.geng_id, -upkeepCost);
+                    db.payGengUpkeep(geng.geng_id);
+                    results.paid++;
+                } else {
+                    // Not enough money - disband geng
+                    db.prepare('DELETE FROM geng_members WHERE geng_id = ?').run(geng.geng_id);
+                    db.prepare('DELETE FROM geng_buffs WHERE geng_id = ?').run(geng.geng_id);
+                    db.prepare('DELETE FROM gengs WHERE geng_id = ?').run(geng.geng_id);
+                    results.disbanded++;
+                }
+                results.processed++;
+            }
+        });
+
+        return results;
+    } catch (e) {
+        console.error('Error processing geng upkeep:', e);
+        return { processed: 0, disbanded: 0, paid: 0, error: e.message };
+    }
+};
+
+// Helper untuk cek upkeep status
+db.getGengUpkeepStatus = (gengId) => {
+    try {
+        const geng = db.getGeng(gengId);
+        if (!geng) return null;
+
+        // Avoid circular dependency - hardcode config values
+        const WEEKLY_UPKEEP = {
+            1: 100_000,
+            2: 250_000,
+            3: 500_000,
+            4: 1_000_000,
+            5: 2_000_000
+        };
+        
+        const now = Date.now();
+        const lastUpkeep = geng.last_upkeep_date || geng.created_at;
+        const oneWeek = 7 * 24 * 60 * 60 * 1000;
+        const timeSinceUpkeep = now - lastUpkeep;
+        const timeUntilUpkeep = oneWeek - timeSinceUpkeep;
+
+        const upkeepCost = WEEKLY_UPKEEP[geng.level] || WEEKLY_UPKEEP[1];
+        const bankBalance = geng.bank_balance || 0;
+        const canPay = bankBalance >= upkeepCost;
+
+        return {
+            upkeepCost,
+            bankBalance,
+            canPay,
+            timeUntilUpkeep: Math.max(0, timeUntilUpkeep),
+            daysRemaining: Math.floor(Math.max(0, timeUntilUpkeep) / (24 * 60 * 60 * 1000))
+        };
+    } catch (e) {
+        console.error('Error getting geng upkeep status:', e);
+        return null;
     }
 };
 

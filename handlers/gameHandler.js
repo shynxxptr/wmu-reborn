@@ -199,13 +199,22 @@ module.exports = {
       .setTitle(`🥊 RONDE ${state.round} / 3`)
       .setDescription(desc);
 
-    if (interaction.message) {
-      await interaction.update({
-        content: `🔥 **DUEL DIMULAI!**`,
-        embeds: [embed],
-        components: [row],
-      });
-    } else {
+    try {
+      if (interaction.message) {
+        if (interaction.deferred || interaction.replied) {
+          await interaction.editReply({
+            content: `🔥 **DUEL DIMULAI!**`,
+            embeds: [embed],
+            components: [row],
+          });
+        } else {
+          await interaction.update({
+            content: `🔥 **DUEL DIMULAI!**`,
+            embeds: [embed],
+            components: [row],
+          });
+        }
+      } else {
       const channel = interaction.client.channels.cache.get(state.channelId);
       if (channel) {
         try {

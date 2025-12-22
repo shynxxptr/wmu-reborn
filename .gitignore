@@ -5,3 +5,7 @@ config.json
 *.log
 *.db
 custom_roles.db
+database.db
+database.db-journal
+*.db-shm
+*.db-wal

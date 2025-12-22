@@ -149,12 +149,21 @@ module.exports = {
     async handleInteraction(interaction) {
         if (!interaction.customId.startsWith('bj_')) return;
 
-        const game = activeBlackjack.get(interaction.message.id);
-        if (!game) return interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+        try {
+            const game = activeBlackjack.get(interaction.message.id);
+            if (!game) {
+                if (interaction.deferred || interaction.replied) {
+                    return interaction.editReply({ content: '❌ Game sudah berakhir.' });
+                }
+                return interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+            }
 
-        if (interaction.user.id !== game.userId) {
-            return interaction.reply({ content: '❌ Bukan kartu kamu!', flags: [MessageFlags.Ephemeral] });
-        }
+            if (interaction.user.id !== game.userId) {
+                if (interaction.deferred || interaction.replied) {
+                    return interaction.editReply({ content: '❌ Bukan kartu kamu!' });
+                }
+                return interaction.reply({ content: '❌ Bukan kartu kamu!', flags: [MessageFlags.Ephemeral] });
+            }
 
         const action = interaction.customId.replace('bj_', '');
 
@@ -179,7 +188,11 @@ module.exports = {
                     new ButtonBuilder().setCustomId('bj_double').setLabel('Double Down').setStyle(ButtonStyle.Success).setDisabled(true)
                 );
 
-                await interaction.update({ embeds: [embed], components: [row] });
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ embeds: [embed], components: [row] });
+                } else {
+                    await interaction.update({ embeds: [embed], components: [row] });
+                }
             }
         } else if (action === 'stand') {
             await this.dealerTurn(interaction, game);
@@ -187,6 +200,9 @@ module.exports = {
             // Check balance again (bet already deducted, need another bet amount)
             const currentBal = db.getBalance(game.userId);
             if (currentBal < game.bet) {
+                if (interaction.deferred || interaction.replied) {
+                    return interaction.editReply({ content: '💸 Uang gak cukup buat Double Down!' });
+                }
                 return interaction.reply({ content: '💸 Uang gak cukup buat Double Down!', flags: [MessageFlags.Ephemeral] });
             }
 
@@ -264,7 +280,27 @@ module.exports = {
             new ButtonBuilder().setCustomId('bj_disabled').setLabel('Game Over').setStyle(ButtonStyle.Secondary).setDisabled(true)
         );
 
-        await interaction.update({ embeds: [embed], components: [row] });
+        try {
+            if (interaction.deferred || interaction.replied) {
+                await interaction.editReply({ embeds: [embed], components: [row] });
+            } else {
+                await interaction.update({ embeds: [embed], components: [row] });
+            }
+        } catch (e) {
+            console.error('[BJ UPDATE ERROR]', e);
+        }
         activeBlackjack.delete(game.messageId);
+        } catch (error) {
+            console.error('[BJ INTERACTION ERROR]', error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.' });
+                } else {
+                    await interaction.reply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
+                }
+            } catch (e) {
+                console.error('[BJ ERROR HANDLING FAILED]', e);
+            }
+        }
     }
 };

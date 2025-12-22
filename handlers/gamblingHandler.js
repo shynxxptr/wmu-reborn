@@ -10,10 +10,17 @@ const doaCooldowns = new Map();
 const bigSlotCooldowns = new Map();
 // Active Slots Map
 const activeSlots = new Map();
+// Active Simple Slots Map (for timing stop)
+const activeSimpleSlots = new Map(); // messageId -> { userId, reel1, reel2, reel3, stopped, timing }
 // Cooldown Map for Math
 const mathCooldowns = new Map();
 const coinflipCooldowns = new Map();
+// Combo & difficulty scaling for math game - TRYHARD FEATURE
+const mathCombo = new Map(); // userId -> { count, difficulty }
 const slotsCooldowns = new Map();
+// Streak system for coinflip - TRYHARD FEATURE
+const coinflipStreak = new Map(); // userId -> { count, lastWin }
+const coinflipHistory = new Map(); // userId -> [last 10 results]
 
 module.exports = {
     async handleGambling(message, command, args) {
@@ -72,7 +79,7 @@ module.exports = {
             return message.reply(`🙏 **Doa Terkabul!**\nMang Ujang mendoakanmu... Hoki bertambah **${luckBoost}%** selama 7 menit! 🍀`);
         }
 
-        // Helper to get effective luck (Base + Penalty + Wealth Limiter)
+        // Helper to get effective luck (Base + Penalty + Wealth Limiter + Luxury Buffs)
         const getEffectiveLuck = (uid) => {
             // 1. Base Luck from Doa Ujang
             let luck = 0;
@@ -81,7 +88,16 @@ module.exports = {
                 luck = u.luck_boost;
             }
 
-            // 2. Manual Penalty
+            // 2. Luxury Items Buff
+            try {
+                const luxuryHandler = require('./luxuryItemsHandler.js');
+                const luxuryLuck = luxuryHandler.getEffectiveLuxuryLuck(uid);
+                luck += luxuryLuck;
+            } catch (e) {
+                // Luxury handler not available yet
+            }
+
+            // 3. Manual Penalty
             const penalty = db.getPenalty(uid);
             luck += penalty;
 
@@ -89,14 +105,18 @@ module.exports = {
             const wealth = db.getWealthStatus(uid);
             const userBal = db.getBalance(uid);
 
-            // Threshold Configuration
+            // Threshold Configuration (Sistem Rungkad Bertingkat)
             const levels = [
-                { limit: 100000000, duration: 6 * 3600 * 1000 },   // 100 Juta - 6 Jam
-                { limit: 500000000, duration: 12 * 3600 * 1000 },  // 500 Juta - 12 Jam
-                { limit: 1000000000, duration: 24 * 3600 * 1000 }, // 1 Milyar - 24 Jam
-                { limit: 10000000000, duration: 48 * 3600 * 1000 },// 10 Milyar - 2 Hari
-                { limit: 50000000000, duration: 72 * 3600 * 1000 },// 50 Milyar - 3 Hari
-                { limit: 100000000000, duration: 120 * 3600 * 1000 }// 100 Milyar - 5 Hari
+                { limit: 100000000, duration: 6 * 3600 * 1000 },      // 100 Juta - 6 Jam
+                { limit: 500000000, duration: 12 * 3600 * 1000 },    // 500 Juta - 12 Jam
+                { limit: 1000000000, duration: 24 * 3600 * 1000 },  // 1 Milyar - 24 Jam
+                { limit: 10000000000, duration: 48 * 3600 * 1000 },  // 10 Milyar - 2 Hari
+                { limit: 50000000000, duration: 72 * 3600 * 1000 },  // 50 Milyar - 3 Hari
+                { limit: 100000000000, duration: 120 * 3600 * 1000 }, // 100 Milyar - 5 Hari
+                { limit: 500000000000, duration: 168 * 3600 * 1000 }, // 500 Milyar - 7 Hari
+                { limit: 1000000000000, duration: 240 * 3600 * 1000 }, // 1 Triliun - 10 Hari
+                { limit: 5000000000000, duration: 336 * 3600 * 1000 }, // 5 Triliun - 14 Hari
+                { limit: 10000000000000, duration: 480 * 3600 * 1000 }  // 10 Triliun - 20 Hari
             ];
 
             const currentLevelIdx = wealth.level_cleared;
@@ -161,13 +181,18 @@ module.exports = {
             return luck;
         };
 
-        // !coinflip <amount> <h/t>
+        // !coinflip <amount> <h/t> [safe/normal/risky]
         if (command === '!coinflip' || command === '!cf') {
             const rawAmount = args[1];
             const choice = args[2]?.toLowerCase(); // head/tail atau h/t
+            const riskMode = args[3]?.toLowerCase() || 'normal'; // safe/normal/risky
 
             if (!rawAmount || !['head', 'tail', 'h', 't'].includes(choice)) {
-                return message.reply('❌ Format: `!cf <jumlah> <head/tail>`');
+                return message.reply('❌ Format: `!cf <jumlah> <head/tail> [safe/normal/risky]`');
+            }
+            
+            if (!['safe', 'normal', 'risky'].includes(riskMode)) {
+                return message.reply('❌ Mode harus: `safe`, `normal`, atau `risky`');
             }
 
             let amount = 0;
@@ -204,15 +229,91 @@ module.exports = {
             const updateRes = db.updateBalance(userId, -amount);
             const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
 
+            // TRACK STATS
+            db.trackGamePlay(userId, 'coinflip', false);
+
             // Jackpot Check
             handleJackpot(amount, userId);
 
+            // RISK MODE SYSTEM - TRYHARD FEATURE
+            let baseChance = 0.45; // 45% base
+            let multiplier = 2.0; // Standard 2x
+            
+            if (riskMode === 'safe') {
+                baseChance = 0.50; // +5% win chance
+                multiplier = 1.8; // -10% multiplier (2.0 * 0.9)
+            } else if (riskMode === 'risky') {
+                baseChance = 0.40; // -5% win chance
+                multiplier = 2.4; // +20% multiplier (2.0 * 1.2)
+            }
+            
             // Luck Logic - CHALLENGING BUT FUN
             const luck = getEffectiveLuck(userId);
-            const baseChance = 0.45; // 45% base (5% house edge for challenge)
             const winChance = baseChance + (luck / 150); // Reduced luck effect (from /100 to /150)
 
-            const isWin = Math.random() < winChance;
+            // Check guaranteed win from luxury items
+            let isWin = false;
+            try {
+                const luxuryHandler = require('./luxuryItemsHandler.js');
+                if (luxuryHandler.hasGuaranteedWin(userId)) {
+                    isWin = true; // Guaranteed win!
+                } else {
+                    isWin = Math.random() < winChance;
+                }
+            } catch (e) {
+                isWin = Math.random() < winChance;
+            }
+            
+            // STREAK SYSTEM - Track consecutive wins
+            const streak = coinflipStreak.get(userId) || { count: 0, lastWin: false };
+            let streakBonus = 0;
+            let streakText = '';
+            
+            if (isWin) {
+                if (streak.lastWin) {
+                    streak.count++;
+                } else {
+                    streak.count = 1; // Reset to 1 if first win after loss
+                }
+                streak.lastWin = true;
+                
+                // TRACK STATS - Update best streak
+                const isNewRecord = db.updateBestStreak(userId, 'coinflip', streak.count);
+                let achievementUnlocked = false;
+                if (isNewRecord && streak.count >= 5) {
+                    // Check achievements
+                    const achievementHandler = require('./achievementHandler.js');
+                    const unlocked = await achievementHandler.checkAchievements(userId);
+                    if (unlocked.length > 0) {
+                        achievementUnlocked = true;
+                    }
+                }
+                
+                // Streak bonus - BALANCED
+                if (streak.count >= 5) {
+                    streakBonus = 0.30; // +30% for 5+ streak (reduced from 50%)
+                    streakText = ` 🔥 **STREAK x${streak.count}** (+30% bonus)`;
+                    if (isNewRecord) {
+                        streakText += ` 🎉 **NEW RECORD!**`;
+                    }
+                } else if (streak.count >= 3) {
+                    streakBonus = 0.15; // +15% for 3-4 streak (reduced from 20%)
+                    streakText = ` 🔥 **STREAK x${streak.count}** (+15% bonus)`;
+                } else if (streak.count >= 2) {
+                    streakBonus = 0.05; // +5% for 2 streak (reduced from 10%)
+                    streakText = ` 🔥 **STREAK x${streak.count}** (+5% bonus)`;
+                }
+            } else {
+                streak.count = 0;
+                streak.lastWin = false;
+            }
+            coinflipStreak.set(userId, streak);
+            
+            // Update history
+            const history = coinflipHistory.get(userId) || [];
+            history.push({ result: isWin ? choice : (choice === 'h' ? 't' : 'h'), win: isWin });
+            if (history.length > 10) history.shift();
+            coinflipHistory.set(userId, history);
 
             // Determine result based on win/loss
             // If win, result matches choice. If loss, result is opposite.
@@ -226,13 +327,24 @@ module.exports = {
             // Animation
             const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
             const createFlipEmbed = (currentFace, status) => {
-                const emoji = currentFace === 'head' ? '🪙' : '🪙'; // Same emoji but different display
+                const emoji = currentFace === 'head' ? '🪙' : '🪙';
                 const faceText = currentFace === 'head' ? '**HEAD** ⬆️' : '**TAIL** ⬇️';
+                const faceEmoji = currentFace === 'head' ? '🟡' : '⚪';
                 return new EmbedBuilder()
                     .setTitle('🪙 COINFLIP 🪙')
-                    .setDescription(`${emoji} ${faceText}`)
+                    .setDescription(
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `${faceEmoji} ${emoji} ${faceText}\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                        status
+                    )
                     .setColor(currentFace === 'head' ? '#FFD700' : '#C0C0C0')
-                    .addFields({ name: 'Status', value: status });
+                    .setAuthor({ 
+                        name: message.author.username, 
+                        iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setFooter({ text: '🪙 Warung Mang Ujang : Reborn' })
+                    .setTimestamp();
             };
 
             // Initial flip message
@@ -249,18 +361,84 @@ module.exports = {
             await delay(500);
 
             if (isWin) {
-                const winAmount = amount * 2;
-                db.updateBalance(userId, winAmount);
+                // Apply streak bonus and risk mode multiplier
+                const baseWin = amount * multiplier;
+                const finalWin = Math.floor(baseWin * (1 + streakBonus));
+                db.updateBalance(userId, finalWin);
+                
+                // TRACK STATS
+                db.trackGamePlay(userId, 'coinflip', true);
+                
+                // Check achievements (total wins)
+                try {
+                    const achievementHandler = require('./achievementHandler.js');
+                    const unlocked = await achievementHandler.checkAchievements(userId);
+                    
+                    // Celebrate milestones
+                    const stats = db.getUserStats(userId);
+                    const celebrationHandler = require('./celebrationHandler.js');
+                    await celebrationHandler.checkMilestones(userId, message.channel, message.author, stats);
+                    
+                    // Celebrate achievement unlock
+                    if (unlocked.length > 0) {
+                        for (const ach of unlocked) {
+                            await celebrationHandler.celebrateAchievement(
+                                message.channel, 
+                                message.author, 
+                                ach.name, 
+                                ach.reward
+                            );
+                        }
+                    }
+                } catch (e) {
+                    console.error('[COINFLIP ACHIEVEMENT ERROR]', e);
+                }
+                
+                // Celebrate streak milestones
+                if (streak.count === 10 || streak.count === 20) {
+                    const celebrationHandler = require('./celebrationHandler.js');
+                    await celebrationHandler.celebrateStreak(message.channel, message.author, streak.count);
+                }
+                
+                // Celebrate big win
+                if (finalWin >= 10000000) {
+                    const celebrationHandler = require('./celebrationHandler.js');
+                    await celebrationHandler.celebrateBigWin(message.channel, message.author, finalWin, multiplier);
+                }
+                
                 missionHandler.trackMission(userId, 'win_coinflip');
-                const luckMsg = luck > 0 ? ` (🍀 Luck +${luck}%)` : '';
+                
+                const luckMsg = luck > 0 ? `\n🍀 **Luck:** +${luck}%` : '';
+                const modeBadge = riskMode !== 'normal' ? `\n🎯 **Mode:** ${riskMode.toUpperCase()}` : '';
+                const historyText = history.length > 0 ? `\n📊 **History:** ${history.slice(-5).map(h => h.win ? '🟢' : '🔴').join(' ')}` : '';
+                
+                let achievementMsg = '';
+                if (achievementUnlocked) {
+                    achievementMsg = '\n\n🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!';
+                }
+                
+                const winStatus = `✅ **MENANG!** 🟢 [SUCCESS]\n` +
+                                 `💰 **Win:** +Rp ${formatMoney(finalWin)}\n` +
+                                 `${streakText}${luckMsg}${modeBadge}${historyText}${achievementMsg}\n` +
+                                 `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                 `*${walletType}*`;
+                
                 await msg.edit({
-                    embeds: [createFlipEmbed(result, `✅ **MENANG!** +Rp ${formatMoney(winAmount)}${luckMsg}\n*${walletType}*`)],
+                    embeds: [createFlipEmbed(result, winStatus)],
                     content: null
                 });
             } else {
                 // Already deducted
+                const historyText = history.length > 0 ? `\n📊 **History:** ${history.slice(-5).map(h => h.win ? '🟢' : '🔴').join(' ')}` : '';
+                const modeBadge = riskMode !== 'normal' ? `\n🎯 **Mode:** ${riskMode.toUpperCase()}` : '';
+                
+                const loseStatus = `❌ **KALAH!** 🔴 [FAILED]\n` +
+                                  `💸 **Loss:** -Rp ${formatMoney(amount)}${modeBadge}${historyText}\n` +
+                                  `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                  `*${walletType}*`;
+                
                 await msg.edit({
-                    embeds: [createFlipEmbed(result, `❌ **KALAH!** -Rp ${formatMoney(amount)}\n*${walletType}*`)],
+                    embeds: [createFlipEmbed(result, loseStatus)],
                     content: null
                 });
             }
@@ -306,6 +484,8 @@ module.exports = {
             const updateRes = db.updateBalance(userId, -amount);
             const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
             missionHandler.trackMission(userId, 'play_slots');
+            
+            // TRACK STATS (will be updated on win/loss)
 
             // Jackpot Check
             handleJackpot(amount, userId);
@@ -337,43 +517,168 @@ module.exports = {
 
             const createEmbed = (r1, r2, r3, status, color = '#0099ff') => {
                 const grid = `\`\`\`\n╔═════════════════╗\n║   ${r1}  ${r2}  ${r3}   ║\n╚═════════════════╝\n\`\`\``;
+                const statusBadge = status.includes('MENANG') ? '🟢 [WIN]' : status.includes('KALAH') ? '🔴 [LOSE]' : '🟡 [SPINNING]';
                 return new EmbedBuilder()
                     .setTitle('🎰 WARUNG SLOTS 🎰')
-                    .setDescription(grid)
+                    .setDescription(
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `${grid}\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                        `${statusBadge} ${status}`
+                    )
                     .setColor(color)
-                    .addFields({ name: 'Status', value: status });
+                    .setAuthor({ 
+                        name: message.author.username, 
+                        iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setFooter({ text: '🎰 Warung Mang Ujang : Reborn' })
+                    .setTimestamp();
             };
 
-            const msg = await message.reply({ embeds: [createEmbed(spinning, spinning, spinning, 'Spinning...')] });
+            // TIMING STOP MECHANIC - TRYHARD FEATURE
+            const stopButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('slot_stop_reel')
+                    .setLabel('🛑 STOP REEL')
+                    .setStyle(ButtonStyle.Danger)
+            );
 
-            // Animation Sequence
-            // Reel 1 Stop
-            await delay(1000);
-            await msg.edit({ embeds: [createEmbed(r1, spinning, spinning, 'Spinning...')] });
+            const msg = await message.reply({ 
+                embeds: [createEmbed(spinning, spinning, spinning, 'Spinning... Tekan STOP di timing tepat!')],
+                components: [stopButton]
+            });
 
-            // Reel 2 Stop
-            await delay(1000);
-            await msg.edit({ embeds: [createEmbed(r1, r2, spinning, 'Spinning...')] });
+            // Save state for timing stop
+            activeSimpleSlots.set(msg.id, {
+                userId,
+                reel1: r1,
+                reel2: r2,
+                reel3: r3,
+                stopped: false,
+                currentReel: 0,
+                startTime: Date.now()
+            });
 
-            // Reel 3 Stop (Final Result)
-            await delay(1000);
-
-            let winMultiplier = 0;
-            if (r1 === r2 && r2 === r3) winMultiplier = 8; // Jackpot (increased from 5)
-            else if (r1 === r2 || r2 === r3 || r1 === r3) winMultiplier = 3; // Small Win (increased from 2)
-
-            const winAmount = amount * winMultiplier;
-            if (winMultiplier > 0) {
-                db.updateBalance(userId, winAmount); // Add win (original bet already deducted)
+            // Reel 1 - Timing window: 800-1200ms for perfect
+            const reel1Start = Date.now();
+            await delay(500);
+            await msg.edit({ embeds: [createEmbed(spinning, spinning, spinning, 'Reel 1 spinning... STOP sekarang!')], components: [stopButton] });
+            
+            let reel1StopTime = 2000; // Default auto-stop
+            let reel1Stopped = false;
+            while (!reel1Stopped && (Date.now() - reel1Start) < 2000) {
+                const state = activeSimpleSlots.get(msg.id);
+                if (!state || state.currentReel > 0) {
+                    reel1StopTime = Date.now() - reel1Start;
+                    reel1Stopped = true;
+                    break;
+                }
+                await delay(50);
             }
 
-            let resultText = winMultiplier > 0 ? `🎉 **WIN!** (+Rp ${formatMoney(winAmount)})` : '📉 **LOSE**';
-            if (winMultiplier === 5) resultText = `🚨 **JACKPOT!!!** (+Rp ${formatMoney(winAmount)})`;
+            let reel1Timing = 'bad';
+            if (reel1StopTime >= 800 && reel1StopTime <= 1200) reel1Timing = 'perfect';
+            else if (reel1StopTime >= 500 && reel1StopTime <= 1500) reel1Timing = 'good';
+
+            await msg.edit({ embeds: [createEmbed(r1, spinning, spinning, `Reel 1: ${reel1Timing === 'perfect' ? '✨ PERFECT!' : reel1Timing === 'good' ? '✅ Good' : '❌ Bad'} Reel 2 spinning...`)] });
+
+            // Reel 2
+            const reel2Start = Date.now();
+            await delay(500);
+            await msg.edit({ embeds: [createEmbed(r1, spinning, spinning, 'Reel 2 spinning... STOP sekarang!')], components: [stopButton] });
+            
+            let reel2StopTime = 2000;
+            let reel2Stopped = false;
+            while (!reel2Stopped && (Date.now() - reel2Start) < 2000) {
+                const state = activeSimpleSlots.get(msg.id);
+                if (!state || state.currentReel > 1) {
+                    reel2StopTime = Date.now() - reel2Start;
+                    reel2Stopped = true;
+                    break;
+                }
+                await delay(50);
+            }
+
+            let reel2Timing = 'bad';
+            if (reel2StopTime >= 800 && reel2StopTime <= 1200) reel2Timing = 'perfect';
+            else if (reel2StopTime >= 500 && reel2StopTime <= 1500) reel2Timing = 'good';
+
+            await msg.edit({ embeds: [createEmbed(r1, r2, spinning, `Reel 2: ${reel2Timing === 'perfect' ? '✨ PERFECT!' : reel2Timing === 'good' ? '✅ Good' : '❌ Bad'} Reel 3 spinning...`)] });
+
+            // Reel 3 - Final (auto)
+            await delay(1000);
+
+            // Calculate timing bonus
+            let timingBonus = 0;
+            let timingText = '';
+            const perfectCount = [reel1Timing, reel2Timing].filter(t => t === 'perfect').length;
+            const goodCount = [reel1Timing, reel2Timing].filter(t => t === 'good').length;
+
+            // Timing bonus - BALANCED
+            if (perfectCount === 2) {
+                timingBonus = 0.30; // +30% for 2 perfect (reduced from 50%)
+                timingText = ' 🔥 **PERFECT TIMING x2!** (+30% bonus)';
+            } else if (perfectCount === 1) {
+                timingBonus = 0.15; // +15% for 1 perfect (reduced from 20%)
+                timingText = ' ✨ **PERFECT TIMING!** (+15% bonus)';
+            } else if (goodCount >= 1) {
+                timingBonus = 0.08; // +8% for good timing (reduced from 10%)
+                timingText = ' ✅ **Good Timing** (+8% bonus)';
+            }
+
+            let winMultiplier = 0;
+            if (r1 === r2 && r2 === r3) winMultiplier = 8;
+            else if (r1 === r2 || r2 === r3 || r1 === r3) winMultiplier = 3;
+
+            const baseWinAmount = amount * winMultiplier;
+            const winAmount = Math.floor(baseWinAmount * (1 + timingBonus));
+            
+            // TRACK STATS - Update best timing
+            let achievementMsg = '';
+            if (perfectCount === 2) {
+                const isNewRecord = db.updateBestTiming(userId, 'slots', 2.0);
+                if (isNewRecord) {
+                    const achievementHandler = require('./achievementHandler.js');
+                    const unlocked = await achievementHandler.checkAchievements(userId).catch(() => []);
+                    if (unlocked.length > 0) {
+                        achievementMsg = '\n\n🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!';
+                    }
+                }
+            }
+            
+            if (winMultiplier > 0) {
+                db.updateBalance(userId, winAmount);
+                // TRACK STATS
+                db.trackGamePlay(userId, 'slots', true);
+                
+                // Check achievements (total wins)
+                const achievementHandler = require('./achievementHandler.js');
+                await achievementHandler.checkAchievements(userId).catch(() => {});
+            } else {
+                // TRACK STATS
+                db.trackGamePlay(userId, 'slots', false);
+            }
+            
+            let resultText = winMultiplier > 0 ? `🎉 **WIN!** (+Rp ${formatMoney(winAmount)})${timingText}` : '📉 **LOSE**';
+            if (winMultiplier === 8) resultText = `🚨 **JACKPOT!!!** (+Rp ${formatMoney(winAmount)})${timingText}`;
             if (luck > 0) resultText += ` 🍀`;
-            resultText += `\n*${walletType}*`;
+            resultText += `${achievementMsg}\n*${walletType}*`;
 
             const finalColor = winMultiplier > 0 ? '#00ff00' : '#ff0000';
-            await msg.edit({ embeds: [createEmbed(r1, r2, r3, resultText, finalColor)] });
+            const disabledButton = new ActionRowBuilder().addComponents(
+                new ButtonBuilder()
+                    .setCustomId('slot_stop_disabled')
+                    .setLabel('🛑 STOPPED')
+                    .setStyle(ButtonStyle.Secondary)
+                    .setDisabled(true)
+            );
+
+            await msg.edit({ 
+                embeds: [createEmbed(r1, r2, r3, resultText, finalColor)],
+                components: [disabledButton]
+            });
+            
+            activeSimpleSlots.delete(msg.id);
         }
         // !math <amount>
         if (command === '!math') {
@@ -415,6 +720,8 @@ module.exports = {
             const updateRes = db.updateBalance(userId, -amount);
             const walletType = updateRes.wallet === 'event' ? '🎟️ Saldo Event' : '💰 Saldo Utama';
             missionHandler.trackMission(userId, 'play_math');
+            
+            // TRACK STATS (will be updated on win/loss)
 
             // Determine Difficulty & Multiplier - CHALLENGING BUT FUN
             let difficulty = 'easy';
@@ -574,8 +881,17 @@ module.exports = {
             };
 
             const { q, a } = generateQuestion(difficulty);
+            
+            // Show combo info
+            let comboText = '';
+            if (combo.count > 0) {
+                comboText = ` 🔥 **COMBO x${combo.count}**`;
+                if (combo.difficulty > 0) {
+                    comboText += ` (+${(combo.difficulty * 100).toFixed(0)}% difficulty)`;
+                }
+            }
 
-            await message.reply(`🧠 **MATH GAME** (${difficulty.toUpperCase()})\nSoal: **${q}**\nJawab dalam ${timeLimit / 1000} detik!`);
+            await message.reply(`🧠 **MATH GAME** (${difficulty.toUpperCase()})${comboText}\nSoal: **${q}**\nJawab dalam ${timeLimit / 1000} detik!`);
 
             const filter = m => m.author.id === userId;
             const collector = message.channel.createMessageCollector({ filter, time: timeLimit, max: 1 });
@@ -583,17 +899,106 @@ module.exports = {
             collector.on('collect', m => {
                 const ans = parseFloat(m.content);
                 if (ans === a) {
-                    const winAmount = Math.floor(amount * multiplier);
+                    // COMBO SYSTEM - Increment combo on correct answer
+                    combo.count++;
+                    combo.difficulty = Math.min(combo.difficulty + 0.05, 0.50); // +5% difficulty per win, max 50%
+                    mathCombo.set(userId, combo);
+                    
+                    // TRACK STATS - Update best combo
+                    const isNewRecord = db.updateBestCombo(userId, 'math', combo.count);
+                    let achievementUnlocked = false;
+                    if (isNewRecord && combo.count >= 10) {
+                        // Check achievements (async, don't wait)
+                        const achievementHandler = require('./achievementHandler.js');
+                        achievementHandler.checkAchievements(userId).then(unlocked => {
+                            if (unlocked.length > 0) {
+                                achievementUnlocked = true;
+                            }
+                        }).catch(() => {});
+                    }
+                    
+                    // COMBO BONUS
+                    let comboBonus = 0;
+                    let comboBonusText = '';
+                    if (combo.count >= 10) {
+                        comboBonus = 0.20; // +20% for 10+ combo
+                        comboBonusText = ` 🔥 **COMBO x${combo.count}** (+20% bonus)`;
+                    } else if (combo.count >= 5) {
+                        comboBonus = 0.10; // +10% for 5-9 combo
+                        comboBonusText = ` 🔥 **COMBO x${combo.count}** (+10% bonus)`;
+                    } else if (combo.count >= 3) {
+                        comboBonus = 0.05; // +5% for 3-4 combo
+                        comboBonusText = ` 🔥 **COMBO x${combo.count}** (+5% bonus)`;
+                    }
+                    
+                    const baseWin = Math.floor(amount * multiplier);
+                    const winAmount = Math.floor(baseWin * (1 + comboBonus));
                     db.updateBalance(userId, winAmount);
-                    m.reply(`✅ **BENAR!** Kamu menang Rp ${formatMoney(winAmount)}! 🎉\n*${walletType}*`);
+                    
+                    // TRACK STATS
+                    db.trackGamePlay(userId, 'math', true);
+                    
+                    // Check achievements (total wins) - async but don't wait
+                    const achievementHandler = require('./achievementHandler.js');
+                    achievementHandler.checkAchievements(userId).then(async (unlocked) => {
+                        // Celebrate milestones
+                        const stats = db.getUserStats(userId);
+                        const celebrationHandler = require('./celebrationHandler.js');
+                        await celebrationHandler.checkMilestones(userId, message.channel, message.author, stats);
+                        
+                        // Celebrate combo milestones
+                        if (combo.count === 10 || combo.count === 20) {
+                            await celebrationHandler.celebrateCombo(message.channel, message.author, 'math', combo.count);
+                        }
+                        
+                        // Celebrate achievement unlock
+                        if (unlocked.length > 0) {
+                            for (const ach of unlocked) {
+                                await celebrationHandler.celebrateAchievement(
+                                    message.channel, 
+                                    message.author, 
+                                    ach.name, 
+                                    ach.reward
+                                );
+                            }
+                        }
+                        
+                        // Celebrate big win
+                        if (winAmount >= 10000000) {
+                            await celebrationHandler.celebrateBigWin(message.channel, message.author, winAmount, multiplier);
+                        }
+                    }).catch(() => {});
+                    
+                    let achievementMsg = '';
+                    if (isNewRecord && combo.count >= 10) {
+                        achievementMsg = '\n\n🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!';
+                    }
+                    
+                    m.reply(`✅ **BENAR!** Kamu menang Rp ${formatMoney(winAmount)}!${comboBonusText}${isNewRecord && combo.count >= 10 ? ' 🎉 **NEW RECORD!**' : ''}${achievementMsg} 🎉\n*${walletType}*`);
                 } else {
-                    m.reply(`❌ **SALAH!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.\n*${walletType}*`);
+                    // Reset combo on wrong answer
+                    combo.count = 0;
+                    combo.difficulty = Math.max(combo.difficulty - 0.10, 0); // -10% difficulty on loss
+                    mathCombo.set(userId, combo);
+                    
+                    // TRACK STATS
+                    db.trackGamePlay(userId, 'math', false);
+                    
+                    m.reply(`❌ **SALAH!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.\n💀 **COMBO RESET!**\n*${walletType}*`);
                 }
             });
 
             collector.on('end', collected => {
                 if (collected.size === 0) {
-                    message.reply(`⏰ **WAKTU HABIS!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.\n*${walletType}*`);
+                    // Reset combo on timeout
+                    combo.count = 0;
+                    combo.difficulty = Math.max(combo.difficulty - 0.10, 0);
+                    mathCombo.set(userId, combo);
+                    
+                    // TRACK STATS
+                    db.trackGamePlay(userId, 'math', false);
+                    
+                    message.reply(`⏰ **WAKTU HABIS!** Jawabannya adalah **${a}**. Kamu kehilangan Rp ${formatMoney(amount)}.\n💀 **COMBO RESET!**\n*${walletType}*`);
                 }
             });
         }
@@ -611,6 +1016,7 @@ module.exports = {
 
             let argsIdx = 1;
             let isBuy = false;
+            let riskMode = 'normal'; // normal, double, safe - TRYHARD FEATURE
 
             if (args[argsIdx]?.toLowerCase() === 'buy') {
                 isBuy = true;
@@ -618,7 +1024,15 @@ module.exports = {
             }
 
             const rawAmount = args[argsIdx];
-            if (!rawAmount) return message.reply(`❌ Format: \`!bs [buy] <bet> [auto/turbo] [count]\`\nContoh: \`!bs 10000 auto 20\``);
+            if (!rawAmount) return message.reply(`❌ Format: \`!bs [buy] <bet> [normal/double/safe] [auto/turbo] [count]\`\nContoh: \`!bs 10000 normal auto 20\``);
+            
+            // Check for risk mode
+            if (args[argsIdx + 1]?.toLowerCase() === 'normal' || 
+                args[argsIdx + 1]?.toLowerCase() === 'double' || 
+                args[argsIdx + 1]?.toLowerCase() === 'safe') {
+                riskMode = args[argsIdx + 1].toLowerCase();
+                argsIdx++; // Skip risk mode in amount parsing
+            }
 
             // Parse Amount
             let amount = 0;
@@ -710,6 +1124,18 @@ module.exports = {
 
                 let scatterChance, multiChance, highChance;
 
+                // RISK MODE MODIFIERS - TRYHARD FEATURE (BALANCED)
+                let multiplierModifier = 1.0;
+                let winChanceModifier = 1.0;
+                
+                if (riskMode === 'double') {
+                    multiplierModifier = 1.5; // +50% multiplier
+                    winChanceModifier = 0.85; // -15% win chance (reduced from -20%)
+                } else if (riskMode === 'safe') {
+                    multiplierModifier = 0.75; // -25% multiplier (reduced from -30%)
+                    winChanceModifier = 1.25; // +25% win chance (reduced from +30%)
+                }
+
                 // Boost chances slightly during Free Spins - CHALLENGING BUT FUN
                 if (isFreeSpinMode) {
                     scatterChance = 0.02;  // Further reduced from 0.025
@@ -739,6 +1165,19 @@ module.exports = {
                     multiChance = 0.025;   // Reduced from 0.04 (37.5% reduction)
                     highChance = 0.35;     // Reduced from 0.47 (25.5% reduction)
                 }
+                
+                // Apply risk mode modifiers to chances - BALANCED
+                if (riskMode === 'double') {
+                    // Reduce chances for double mode (-15%)
+                    scatterChance *= winChanceModifier;
+                    multiChance *= winChanceModifier;
+                    highChance *= winChanceModifier;
+                } else if (riskMode === 'safe') {
+                    // Increase chances for safe mode (+25%)
+                    scatterChance = Math.min(scatterChance * winChanceModifier, 0.05);
+                    multiChance = Math.min(multiChance * winChanceModifier, 0.05);
+                    highChance = Math.min(highChance * winChanceModifier, 0.60);
+                }
 
                 const grid = [];
                 for (let i = 0; i < 5; i++) {
@@ -752,7 +1191,7 @@ module.exports = {
                     }
                     grid.push(row);
                 }
-                return grid;
+                return { grid, multiplierModifier };
             };
 
             // ASCII Helper
@@ -763,12 +1202,28 @@ module.exports = {
                 const borderBot = '╚══════════════════════════════════╝';
                 const fullGrid = `\`\`\`\n${borderTop}\n${gridString}\n${borderBot}\n\`\`\``;
 
+                let riskModeText = '';
+                if (riskMode === 'double') {
+                    riskModeText = ' 🔥 **DOUBLE MODE** (+50% multiplier, -15% win chance)';
+                } else if (riskMode === 'safe') {
+                    riskModeText = ' 🛡️ **SAFE MODE** (+25% win chance, -25% multiplier)';
+                }
+
+                // Status badge
+                const statusBadge = color === 'Green' ? '🟢 [WIN]' : color === 'Red' ? '🔴 [LOSE]' : '🟡 [SPINNING]';
+                const embedColor = color === 'Green' ? '#00FF00' : color === 'Red' ? '#FF0000' : '#FFD700';
+                
                 const embed = new EmbedBuilder()
                     .setTitle('🎰 WARUNG SLOTS (Gates of Mang Ujang) 🎰')
-                    .setColor(color)
-                    .setDescription(fullGrid)
+                    .setColor(embedColor)
+                    .setDescription(
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                        `${fullGrid}\n` +
+                        `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n\n` +
+                        `${statusBadge} ${status}`
+                    )
                     .addFields(
-                        { name: '💰 Bet', value: `Rp ${formatMoney(bet)}`, inline: true },
+                        { name: '💰 Bet', value: `Rp ${formatMoney(bet)}${riskModeText}`, inline: true },
                         { name: '📊 Status', value: status, inline: true },
                         { name: '🚨 Max Win', value: `5000x Bet (Rp ${formatMoney(bet * 5000)})`, inline: true }
                     );
@@ -858,7 +1313,9 @@ module.exports = {
                 }
 
                 // Generate Grid
-                let grid = generateGrid(isFreeSpin);
+                const gridResult = generateGrid(isFreeSpin);
+                let grid = gridResult.grid;
+                const currentMultiplierModifier = gridResult.multiplierModifier;
 
                 // Handle Buy Feature (Force Scatters on first spin if bought)
                 if (isBuy && spinIndex === 1) {
@@ -937,7 +1394,8 @@ module.exports = {
                     if (sym === symbols.scatter || sym === symbols.multi) continue;
                     const pay = getPayout(sym, count);
                     if (pay > 0) {
-                        roundWin += amount * pay;
+                        // Apply risk mode multiplier modifier
+                        roundWin += amount * pay * currentMultiplierModifier;
                     }
                 }
 
@@ -976,6 +1434,21 @@ module.exports = {
                 if (spinWin > 0) {
                     db.updateBalance(userId, spinWin);
                     totalWon += spinWin;
+                    // TRACK STATS
+                    db.trackGamePlay(userId, 'bigslot', true);
+                    
+                    // Check achievements (total wins) - only once per session to avoid spam
+                    if (spinIndex === 1 || (spinIndex % 10 === 0)) {
+                        try {
+                            const achievementHandler = require('./achievementHandler.js');
+                            await achievementHandler.checkAchievements(userId);
+                        } catch (e) {
+                            console.error('[BIGSLOT ACHIEVEMENT ERROR]', e);
+                        }
+                    }
+                } else {
+                    // TRACK STATS
+                    db.trackGamePlay(userId, 'bigslot', false);
                 }
 
                 // MAX WIN CHECK
@@ -1002,19 +1475,38 @@ module.exports = {
 
             // Final Summary
             const net = totalWon - totalSpent;
+            const summaryStatus = net >= 0 ? '🟢 [PROFIT]' : '🔴 [LOSS]';
+            
             const summaryEmbed = new EmbedBuilder()
                 .setTitle('🎰 SESSION ENDED')
                 .setColor(net >= 0 ? '#00FF00' : '#FF0000')
+                .setDescription(
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `${summaryStatus} **Session Summary**\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+                )
                 .addFields(
                     { name: 'Total Spins', value: `${spinIndex}`, inline: true },
                     { name: 'Total Spent', value: `Rp ${formatMoney(totalSpent)}`, inline: true },
                     { name: 'Total Won', value: `Rp ${formatMoney(totalWon)}`, inline: true },
                     { name: 'Net Profit', value: `Rp ${formatMoney(net)}`, inline: false },
                     { name: 'Wallet', value: walletType || 'Unknown', inline: false }
-                );
+                )
+                .setAuthor({ 
+                    name: message.author.username, 
+                    iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                })
+                .setFooter({ text: '🎰 Warung Mang Ujang' })
+                .setTimestamp();
 
             if (isMaxWinReached) {
-                summaryEmbed.setDescription(`🚨 **MAX WIN REACHED!** (5000x Bet = Rp ${formatMoney(amount * 5000)})\nSesi dihentikan otomatis untuk mencegah exploit.`);
+                summaryEmbed.setDescription(
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                    `🚨 **MAX WIN REACHED!**\n` +
+                    `💰 **Win:** 5000x Bet = Rp ${formatMoney(amount * 5000)}\n` +
+                    `⚠️ Sesi dihentikan otomatis untuk mencegah exploit.\n` +
+                    `━━━━━━━━━━━━━━━━━━━━━━━━━━━━`
+                );
             }
 
             await message.channel.send({ embeds: [summaryEmbed] });
@@ -1024,16 +1516,69 @@ module.exports = {
 
     // Handle Button Interactions for Slot Stop
     async handleSlotButton(interaction) {
-        if (interaction.customId === 'slot_stop') {
-            const state = activeSlots.get(interaction.message.id);
-            if (!state) return interaction.reply({ content: '❌ Sesi tidak ditemukan.', flags: [MessageFlags.Ephemeral] });
+        try {
+            if (interaction.customId === 'slot_stop') {
+                const state = activeSlots.get(interaction.message.id);
+                if (!state) {
+                    if (interaction.deferred || interaction.replied) {
+                        return interaction.editReply({ content: '❌ Sesi tidak ditemukan.' });
+                    }
+                    return interaction.reply({ content: '❌ Sesi tidak ditemukan.', flags: [MessageFlags.Ephemeral] });
+                }
 
-            if (state.userId !== interaction.user.id) {
-                return interaction.reply({ content: '❌ Bukan sesi kamu!', flags: [MessageFlags.Ephemeral] });
+                if (state.userId !== interaction.user.id) {
+                    if (interaction.deferred || interaction.replied) {
+                        return interaction.editReply({ content: '❌ Bukan sesi kamu!' });
+                    }
+                    return interaction.reply({ content: '❌ Bukan sesi kamu!', flags: [MessageFlags.Ephemeral] });
+                }
+
+                state.stopped = true;
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: '🛑 Menghentikan auto spin...' });
+                } else {
+                    await interaction.reply({ content: '🛑 Menghentikan auto spin...', flags: [MessageFlags.Ephemeral] });
+                }
+            } else if (interaction.customId === 'slot_stop_reel') {
+                // Timing stop for simple slots - TRYHARD FEATURE
+                const state = activeSimpleSlots.get(interaction.message.id);
+                if (!state) {
+                    if (interaction.deferred || interaction.replied) {
+                        return interaction.editReply({ content: '❌ Game sudah berakhir.' });
+                    }
+                    return interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+                }
+
+                if (state.userId !== interaction.user.id) {
+                    if (interaction.deferred || interaction.replied) {
+                        return interaction.editReply({ content: '❌ Bukan game kamu!' });
+                    }
+                    return interaction.reply({ content: '❌ Bukan game kamu!', flags: [MessageFlags.Ephemeral] });
+                }
+
+                // Stop current reel
+                state.currentReel++;
+                if (state.currentReel >= 3) {
+                    state.stopped = true;
+                }
+
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: `🛑 Reel ${state.currentReel} dihentikan!` });
+                } else {
+                    await interaction.reply({ content: `🛑 Reel ${state.currentReel} dihentikan!`, flags: [MessageFlags.Ephemeral] });
+                }
             }
-
-            state.stopped = true;
-            await interaction.reply({ content: '🛑 Menghentikan auto spin...', flags: [MessageFlags.Ephemeral] });
+        } catch (error) {
+            console.error('[SLOT BUTTON ERROR]', error);
+            try {
+                if (interaction.deferred || interaction.replied) {
+                    await interaction.editReply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.' });
+                } else {
+                    await interaction.reply({ content: '❌ **Error:** Gagal memproses. Silakan coba lagi.', flags: [MessageFlags.Ephemeral] });
+                }
+            } catch (e) {
+                console.error('[SLOT ERROR HANDLING FAILED]', e);
+            }
         }
     }
 };

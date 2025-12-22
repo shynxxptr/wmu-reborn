@@ -159,6 +159,7 @@ module.exports = {
         // Cek di MENU_KANTIN atau MENU_WARUNG
         let menu = MENU_KANTIN[itemKey];
         let isWarungItem = false;
+        let isLuxuryItem = false;
 
         if (!menu) {
             const { MENU_WARUNG } = require('./warungHandler.js');
@@ -166,9 +167,55 @@ module.exports = {
             isWarungItem = true;
         }
 
-        console.log(`[EAT DEBUG] User: ${user.username}, Item: ${itemKey}, IsWarung: ${isWarungItem}, Type: ${menu?.type}`);
+        // Cek luxury items
+        if (!menu) {
+            try {
+                const { LUXURY_ITEMS } = require('./luxuryItemsHandler.js');
+                if (LUXURY_ITEMS[itemKey]) {
+                    menu = LUXURY_ITEMS[itemKey];
+                    isLuxuryItem = true;
+                }
+            } catch (e) {
+                // Luxury handler not available
+            }
+        }
+
+        console.log(`[EAT DEBUG] User: ${user.username}, Item: ${itemKey}, IsWarung: ${isWarungItem}, IsLuxury: ${isLuxuryItem}, Type: ${menu?.type}`);
 
         if (!menu) return interaction.reply({ content: '❌ Barang tidak valid.', flags: [MessageFlags.Ephemeral] });
+
+        // Handle luxury items
+        if (isLuxuryItem) {
+            try {
+                const luxuryHandler = require('./luxuryItemsHandler.js');
+                const result = await luxuryHandler.handleLuxuryUse(user.id, itemKey);
+                
+                if (!result.success) {
+                    return interaction.reply({ content: `❌ ${result.error}`, flags: [MessageFlags.Ephemeral] });
+                }
+
+                const embed = new EmbedBuilder()
+                    .setColor('#FFD700')
+                    .setTitle(`✨ ${result.item} Digunakan!`)
+                    .setDescription(
+                        `🎉 **Luxury item berhasil digunakan!**\n\n` +
+                        `**✨ Efek Aktif:**\n${result.effects}\n\n` +
+                        `💡 **Tip:** Gunakan \`!buffs\` untuk cek semua active buffs!`
+                    )
+                    .setThumbnail('https://cdn-icons-png.flaticon.com/512/3135/3135715.png')
+                    .setAuthor({ 
+                        name: user.username, 
+                        iconURL: user.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setFooter({ text: '💎 Luxury Item' })
+                    .setTimestamp();
+
+                return interaction.reply({ embeds: [embed] });
+            } catch (e) {
+                console.error('[Luxury Item Error]', e);
+                return interaction.reply({ content: '❌ Error menggunakan luxury item.', flags: [MessageFlags.Ephemeral] });
+            }
+        }
 
         // 1. CEK INVENTARIS
         const item = db.prepare('SELECT * FROM inventaris WHERE user_id = ? AND jenis_tiket = ?').get(user.id, itemKey);

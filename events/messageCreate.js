@@ -297,6 +297,15 @@ module.exports = {
             if (userEskul && userEskul.eskul_name === 'pramuka') { hungerRed = 5; thirstRed = 7; } // 50% Reduction
             if (userEskul && userEskul.eskul_name === 'pmr') stressRed = Math.ceil(stressRed / 2); // 50% Reduction
 
+            // CEK LUXURY ITEMS WORK LIMIT BOOST
+            try {
+                const luxuryHandler = require('../handlers/luxuryItemsHandler.js');
+                const luxuryWorkBoost = luxuryHandler.getWorkLimitBoost(userId);
+                limitBonus += luxuryWorkBoost;
+            } catch (e) {
+                // Luxury handler not available
+            }
+
             // Cek Limit (Updated with Bonus)
             const maxJobs = MAX_JOBS_PER_HOUR + limitBonus;
             if (user.last_work_count >= maxJobs) {
@@ -678,6 +687,14 @@ module.exports = {
             await bankingHandler.handleBanking(message, command, args);
         }
 
+        // --- 9.6 COMPENSATION SYSTEM ---
+        if (content.startsWith('!claimcompensation') || content.startsWith('!compensation')) {
+            const compensationHandler = require('../handlers/compensationHandler.js');
+            const args = content.split(' ');
+            const command = args[0];
+            await compensationHandler.handleCompensation(message, command, args);
+        }
+
         // --- 9.5 BLACK MARKET ---
         if (content.startsWith('!bm')) {
             const blackMarketHandler = require('../handlers/blackMarketHandler.js');
@@ -730,6 +747,104 @@ module.exports = {
 
         // --- 5. ADMIN COMMANDS ---
 
+        // !announce - Send return announcement
+        if (content === '!announce' || content === '!announcement') {
+            const isAdmin = db.isAdmin(userId);
+            if (!isAdmin) {
+                return message.reply('❌ **Admin only!** Command ini hanya untuk admin bot.');
+            }
+
+            const announcementHandler = require('../handlers/announcementHandler.js');
+            const announcement = await announcementHandler.sendReturnAnnouncement(message.channel);
+            
+            await message.channel.send(announcement);
+            return message.reply('✅ **Announcement berhasil dikirim!**');
+        }
+
+        // !announcesimple - Send simple announcement (no buttons)
+        if (content === '!announcesimple') {
+            const isAdmin = db.isAdmin(userId);
+            if (!isAdmin) {
+                return message.reply('❌ **Admin only!** Command ini hanya untuk admin bot.');
+            }
+
+            const announcementHandler = require('../handlers/announcementHandler.js');
+            const announcement = await announcementHandler.sendSimpleAnnouncement(message.channel);
+            
+            await message.channel.send(announcement);
+            return message.reply('✅ **Simple announcement berhasil dikirim!**');
+        }
+
+        // !compensate @user <package> - Set compensation package for user
+        if (content.startsWith('!compensate ')) {
+            const isAdmin = db.isAdmin(userId);
+            if (!isAdmin) {
+                return message.reply('❌ **Admin only!** Command ini hanya untuk admin bot.');
+            }
+
+            const args = content.split(' ');
+            const targetUser = message.mentions.users.first();
+            const packageType = args[2]?.toLowerCase();
+
+            if (!targetUser || !packageType) {
+                return message.reply('❌ Format: `!compensate @user <package>`\nPackages: `starter`, `base`, `premium`');
+            }
+
+            const validPackages = ['starter', 'base', 'premium'];
+            if (!validPackages.includes(packageType)) {
+                return message.reply(`❌ Package tidak valid! Pilih: ${validPackages.join(', ')}`);
+            }
+
+            const compensationHandler = require('../handlers/compensationHandler.js');
+            const result = await compensationHandler.setUserCompensation(targetUser.id, packageType);
+
+            if (result.success) {
+                return message.reply(`✅ **Kompensasi di-set untuk ${targetUser}!**\nPackage: ${packageType}\nUser bisa claim dengan \`!claimcompensation\``);
+            } else {
+                return message.reply(`❌ **Gagal:** ${result.error}`);
+            }
+        }
+
+        // !compensatebulk <package> - Set compensation for all users in server
+        if (content.startsWith('!compensatebulk ')) {
+            const isAdmin = db.isAdmin(userId);
+            if (!isAdmin) {
+                return message.reply('❌ **Admin only!** Command ini hanya untuk admin bot.');
+            }
+
+            const args = content.split(' ');
+            const packageType = args[1]?.toLowerCase();
+
+            if (!packageType) {
+                return message.reply('❌ Format: `!compensatebulk <package>`\nPackages: `starter`, `base`, `premium`');
+            }
+
+            const validPackages = ['starter', 'base', 'premium'];
+            if (!validPackages.includes(packageType)) {
+                return message.reply(`❌ Package tidak valid! Pilih: ${validPackages.join(', ')}`);
+            }
+
+            // Get all members in server
+            try {
+                const members = await message.guild.members.fetch();
+                const userIds = members.map(m => m.id).filter(id => {
+                    const member = members.get(id);
+                    return member && !member.user.bot;
+                });
+
+                const compensationHandler = require('../handlers/compensationHandler.js');
+                const results = await compensationHandler.setBulkCompensation(userIds, packageType);
+
+                const success = results.filter(r => r.success).length;
+                const failed = results.filter(r => !r.success).length;
+
+                return message.reply(`✅ **Bulk Compensation Set!**\nPackage: ${packageType}\n✅ Success: ${success}\n❌ Failed: ${failed}\n\nUser bisa claim dengan \`!claimcompensation\``);
+            } catch (e) {
+                console.error('Error in compensatebulk:', e);
+                return message.reply(`❌ **Error:** ${e.message}`);
+            }
+        }
+
         // !adminhelp - Show all admin commands
         if (content === '!adminhelp' || content === '!admin') {
             const isAdmin = db.isAdmin(userId);
@@ -759,6 +874,10 @@ module.exports = {
                     {
                         name: '🧪 **Testing & Debug**',
                         value: '`!testall` - Test semua command bot'
+                    },
+                    {
+                        name: '💰 **Compensation**',
+                        value: '`!compensate @user <package>` - Set compensation package\n`!compensatebulk <package>` - Set untuk semua user\nPackages: `starter`, `base`, `premium`'
                     },
                     {
                         name: '📋 **Slash Commands (Discord)**',
@@ -908,8 +1027,170 @@ module.exports = {
             await heistHandler.startHeist(message);
             return;
         }
+        
+        // --- 8. PENCAPAIAN (STATISTICS) ---
+        if (content.startsWith('!pencapaian')) {
+            const achievementHandler = require('../handlers/achievementHandler.js');
+            await achievementHandler.handlePencapaian(message);
+            return;
+        }
+        
+        // --- 9. ACHIEVEMENTS ---
+        if (content.startsWith('!achievements') || content.startsWith('!achievement')) {
+            const achievementHandler = require('../handlers/achievementHandler.js');
+            await achievementHandler.handleAchievements(message);
+            return;
+        }
+        
+        // --- 10. CLAIM ACHIEVEMENT ---
+        if (content.startsWith('!claim')) {
+            const achievementHandler = require('../handlers/achievementHandler.js');
+            await achievementHandler.handleClaim(message);
+            return;
+        }
+        
+        // --- 11. DAILY CHALLENGES ---
+        if (content.startsWith('!challenge') || content.startsWith('!daily')) {
+            const dailyChallengeHandler = require('../handlers/dailyChallengeHandler.js');
+            await dailyChallengeHandler.showDailyChallenges(message);
+            return;
+        }
+        
+        // --- 12. CLAIM CHALLENGE REWARD ---
+        if (content.startsWith('!claimchallenge')) {
+            const dailyChallengeHandler = require('../handlers/dailyChallengeHandler.js');
+            const challenge = dailyChallengeHandler.generateDailyChallenges(message.author.id);
+            const progress = dailyChallengeHandler.checkChallengeProgress(message.author.id);
+            
+            if (!challenge || !progress) {
+                return message.reply('❌ Error loading challenges.');
+            }
+            
+            const challengeData = db.getDailyChallenge(message.author.id);
+            let completed = [];
+            try {
+                completed = JSON.parse(challengeData.completed_challenges || '[]');
+            } catch (e) {
+                completed = [];
+            }
+            
+            let totalReward = 0;
+            const claimed = [];
+            
+            for (const [key, data] of Object.entries(progress)) {
+                if (data.completed && !completed.includes(key)) {
+                    const result = dailyChallengeHandler.claimChallengeReward(message.author.id, key);
+                    if (result.success) {
+                        totalReward += result.reward;
+                        claimed.push(key);
+                    }
+                }
+            }
+            
+            if (totalReward > 0) {
+                const embed = new EmbedBuilder()
+                    .setTitle('🎉 DAILY CHALLENGE REWARD CLAIMED!')
+                    .setColor('#00FF00')
+                    .setAuthor({ 
+                        name: message.author.username, 
+                        iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                    })
+                    .setDescription(`**Kamu berhasil claim ${claimed.length} challenge!**\n\n` +
+                                  `💰 **Total Reward:**\n` +
+                                  `\`\`\`\nRp ${formatMoney(totalReward)}\n\`\`\``)
+                    .setFooter({ text: `Claimed by ${message.author.username} • ${new Date().toLocaleString('id-ID')}` })
+                    .setTimestamp();
+                
+                return message.reply({ embeds: [embed] });
+            }
+            
+            return message.reply('❌ Tidak ada challenge yang bisa di-claim.');
+        }
 
-        // --- 8. BLACKLIST LEADERBOARD (ADMIN) ---
+        // --- 13. LUXURY ITEMS SHOP ---
+        if (content.startsWith('!luxury') || content.startsWith('!luxuryshop')) {
+            const luxuryHandler = require('../handlers/luxuryItemsHandler.js');
+            await luxuryHandler.handleLuxuryShop(message);
+            return;
+        }
+
+        // --- 13.5. LUXURY BUFFS STATUS ---
+        if (content.startsWith('!buffs') || content.startsWith('!luxurybuffs')) {
+            const luxuryHandler = require('../handlers/luxuryItemsHandler.js');
+            await luxuryHandler.handleBuffsStatus(message);
+            return;
+        }
+
+        // --- 14. GENG SYSTEM (SCHOOL GANG) ---
+        if (content.startsWith('!geng ')) {
+            const gengHandler = require('../handlers/gengHandler.js');
+            const args = content.split(' ').slice(1);
+            const command = args[0]?.toLowerCase();
+
+            if (command === 'create') {
+                await gengHandler.handleGengCreate(message, args.slice(1));
+                return;
+            }
+            if (command === 'info') {
+                await gengHandler.handleGengInfo(message);
+                return;
+            }
+            if (command === 'invite') {
+                await gengHandler.handleGengInvite(message, args.slice(1));
+                return;
+            }
+            if (command === 'leave') {
+                await gengHandler.handleGengLeave(message);
+                return;
+            }
+            if (command === 'bank') {
+                await gengHandler.handleGengBank(message, args.slice(1));
+                return;
+            }
+            if (command === 'upgrade') {
+                await gengHandler.handleGengUpgrade(message);
+                return;
+            }
+            if (command === 'list') {
+                await gengHandler.handleGengList(message);
+                return;
+            }
+            if (command === 'kick') {
+                await gengHandler.handleGengKick(message, args.slice(1));
+                return;
+            }
+            if (command === 'transfer') {
+                await gengHandler.handleGengTransfer(message, args.slice(1));
+                return;
+            }
+            if (command === 'disband') {
+                await gengHandler.handleGengDisband(message);
+                return;
+            }
+
+            // Help message
+            const embed = new EmbedBuilder()
+                .setTitle('🏫 GENG SYSTEM - HELP')
+                .setDescription(
+                    '**Commands:**\n' +
+                    `\`!geng create <nama>\` - Buat geng baru (${formatMoney(gengHandler.GENG_CONFIG.CREATE_COST)})\n` +
+                    `\`!geng info\` - Info gengmu\n` +
+                    `\`!geng invite <user>\` - Invite member (leader only)\n` +
+                    `\`!geng leave\` - Keluar dari geng\n` +
+                    `\`!geng bank [deposit/withdraw] <amount>\` - Kelola bank geng\n` +
+                    `\`!geng upgrade\` - Upgrade level geng (leader only)\n` +
+                    `\`!geng kick <user>\` - Kick member (leader only)\n` +
+                    `\`!geng transfer <user>\` - Transfer leadership (leader only)\n` +
+                    `\`!geng disband\` - Bubarkan geng (leader only)\n` +
+                    `\`!geng list\` - Top 10 geng`
+                )
+                .setColor('#0099FF')
+                .setFooter({ text: '🏫 Geng Sekolah' })
+                .setTimestamp();
+            return message.reply({ embeds: [embed] });
+        }
+
+        // --- 15. BLACKLIST LEADERBOARD (ADMIN) ---
         if (content.startsWith('!blacklist ')) {
             if (!message.member.permissions.has('Administrator')) return message.reply('❌ Admin Only!');
             const target = message.mentions.users.first();
@@ -979,7 +1260,7 @@ module.exports = {
                 new EmbedBuilder()
                     .setTitle('📚 KANTIN SEKOLAH - MENU UTAMA (1/3)')
                     .setColor('#00AAFF')
-                    .setDescription('Selamat datang di Warung Mang Ujang! Berikut panduan lengkapnya:')
+                    .setDescription('Selamat datang di Warung Mang Ujang : Reborn! Berikut panduan lengkapnya:')
                     .addFields(
                         {
                             name: '🏪 KANTIN & WARUNG',
@@ -1010,7 +1291,7 @@ module.exports = {
                                 '`!palak @user <jumlah>` - Duel Batu Gunting Kertas.'
                         }
                     )
-                    .setFooter({ text: 'Halaman 1 dari 3 • Klik tombol di bawah untuk ganti halaman.' }),
+                    .setFooter({ text: 'Halaman 1 dari 4 • Klik tombol di bawah untuk ganti halaman.' }),
 
                 // PAGE 2: GAMBLING & MINIGAMES
                 new EmbedBuilder()
@@ -1047,16 +1328,16 @@ module.exports = {
                                 '`!lb` / `!top` - Alias untuk leaderboard.'
                         }
                     )
-                    .setFooter({ text: 'Halaman 2 dari 3 • Gunakan "all" untuk all-in (Contoh: !cf all h).' }),
+                    .setFooter({ text: 'Halaman 2 dari 4 • Gunakan "all" untuk all-in (Contoh: !cf all h).' }),
 
                 // PAGE 3: COIN UJANG & FITUR SEKOLAH
                 new EmbedBuilder()
-                    .setTitle('💎 COIN UJANG & FITUR SEKOLAH (3/3)')
+                    .setTitle('💎 COIN UJANG & FITUR SEKOLAH (3/4)')
                     .setColor('#A020F0')
                     .setDescription('Fitur premium dan kehidupan sekolah.')
                     .addFields(
                         {
-                            name: '🏫 KEHIDUPAN SEKOLAH (BARU!)',
+                            name: '🏫 KEHIDUPAN SEKOLAH',
                             value:
                                 '`!tawuran` - Ajak teman lawan sekolah sebelah.\n' +
                                 '`!eskul` - Join ekskul buat dapet buff.\n' +
@@ -1077,7 +1358,50 @@ module.exports = {
                                 '*Tips: Jangan sampai stat 100% atau gak bisa kerja!*'
                         }
                     )
-                    .setFooter({ text: 'Halaman 3 dari 3 • Bot by Antigravity' })
+                    .setFooter({ text: 'Halaman 3 dari 4 • Klik tombol untuk halaman berikutnya' }),
+                
+                // PAGE 4: NEW FEATURES (Luxury, Geng, Achievements)
+                new EmbedBuilder()
+                    .setTitle('✨ FITUR BARU - LUXURY & GENG (4/4)')
+                    .setColor('#FFD700')
+                    .setDescription('Fitur premium terbaru!')
+                    .addFields(
+                        {
+                            name: '💎 LUXURY ITEMS',
+                            value:
+                                '`!luxury` - Toko luxury items\n' +
+                                '`!buffs` - Cek active buffs\n' +
+                                '*Item: Champagne, Cerutu, Potion, Elixir, Fortune Cookie*'
+                        },
+                        {
+                            name: '🏫 GENG SYSTEM',
+                            value:
+                                '`!geng create <nama>` - Buat geng (5M)\n' +
+                                '`!geng info` - Info gengmu\n' +
+                                '`!geng invite <user>` - Invite member\n' +
+                                '`!geng bank` - Kelola bank geng\n' +
+                                '`!geng upgrade` - Upgrade level geng\n' +
+                                '`!geng list` - Top 10 geng'
+                        },
+                        {
+                            name: '🏆 ACHIEVEMENTS & STATS',
+                            value:
+                                '`!pencapaian` - Statistics lengkap\n' +
+                                '`!achievements` - List semua achievements\n' +
+                                '`!claim` - Claim reward achievements\n' +
+                                '`!challenge` - Daily challenges\n' +
+                                '`!lb` - Leaderboard (richest, combo, streak)'
+                        },
+                        {
+                            name: '💡 TIPS',
+                            value:
+                                '• Mulai dengan kerja untuk uang awal\n' +
+                                '• Gunakan luxury items untuk buffs\n' +
+                                '• Join geng untuk fitur tambahan\n' +
+                                '• Claim achievements untuk reward besar!'
+                        }
+                    )
+                    .setFooter({ text: 'Halaman 4 dari 4 • Bot by Antigravity' })
             ];
 
             const getRow = (pageIndex) => {

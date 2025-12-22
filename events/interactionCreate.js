@@ -126,6 +126,13 @@ module.exports = {
                 return;
             }
 
+            // LUXURY ITEMS SHOP HANDLER
+            if (id === 'luxury_shop_buy') {
+                const luxuryHandler = require('../handlers/luxuryItemsHandler.js');
+                await luxuryHandler.handleLuxuryBuy(interaction);
+                return;
+            }
+
             // E. KANTIN FUN MENU & MAKAN
             if (id === 'kantin_menu') {
                 await kantinHandler.handleKantinInteraction(interaction);
@@ -174,6 +181,137 @@ module.exports = {
             // K. BLACKJACK HANDLER
             if (id.startsWith('bj_')) {
                 await blackjackHandler.handleInteraction(interaction);
+                return;
+            }
+
+            // L. ANNOUNCEMENT BUTTONS
+            if (id === 'announce_claim_compensation') {
+                try {
+                    await interaction.deferReply({ ephemeral: true });
+                    const compensationHandler = require('../handlers/compensationHandler.js');
+                    await compensationHandler.handleCompensation(interaction, 'claim', ['claimcompensation', 'claim']);
+                } catch (error) {
+                    console.error('[ANNOUNCE CLAIM ERROR]', error);
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            await interaction.editReply({ content: '❌ **Error:** Gagal claim kompensasi. Silakan hubungi admin.' });
+                        } else {
+                            await interaction.reply({ content: '❌ **Error:** Gagal claim kompensasi. Silakan hubungi admin.', ephemeral: true });
+                        }
+                    } catch (e) {
+                        console.error('[ANNOUNCE CLAIM ERROR - Follow up failed]', e);
+                    }
+                }
+                return;
+            }
+            if (id === 'announce_help') {
+                try {
+                    const helpEmbed = new EmbedBuilder()
+                        .setTitle('📚 **HELP MENU**')
+                        .setDescription('Ketik `!help` untuk melihat semua commands lengkap!')
+                        .setColor('#0099FF')
+                        .addFields(
+                            {
+                                name: '💰 **KOMPENSASI**',
+                                value: '`!claimcompensation` - Ambil kompensasi database reset',
+                                inline: true
+                            },
+                            {
+                                name: '🏦 **BANKING**',
+                                value: '`!bank` - Cek saldo bank\n`!bank deposit <amount>` - Deposit\n`!bank withdraw <amount>` - Withdraw (max 10M/hari)',
+                                inline: true
+                            },
+                            {
+                                name: '🎮 **GAMES**',
+                                value: '`!cf <bet>` - Coinflip\n`!slots <bet>` - Slots\n`!saham <bet>` - Crash\n`!bom <bet>` - Minesweeper',
+                                inline: true
+                            },
+                            {
+                                name: '📊 **STATS & ACHIEVEMENTS**',
+                                value: '`!pencapaian` - Lihat statistics\n`!achievements` - Lihat semua achievements\n`!claim` - Claim reward achievement',
+                                inline: true
+                            },
+                            {
+                                name: '💎 **LUXURY & GENG**',
+                                value: '`!luxury` - Toko luxury items\n`!buffs` - Lihat active buffs\n`!geng create <nama>` - Buat geng',
+                                inline: true
+                            }
+                        )
+                        .setFooter({ text: 'Warung Mang Ujang : Reborn Bot' })
+                        .setTimestamp();
+                    
+                    await interaction.reply({ embeds: [helpEmbed], ephemeral: true });
+                } catch (error) {
+                    console.error('[ANNOUNCE HELP ERROR]', error);
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            await interaction.editReply({ content: '❌ **Error:** Gagal menampilkan help menu.' });
+                        } else {
+                            await interaction.reply({ content: '❌ **Error:** Gagal menampilkan help menu.', ephemeral: true });
+                        }
+                    } catch (e) {
+                        console.error('[ANNOUNCE HELP ERROR - Follow up failed]', e);
+                    }
+                }
+                return;
+            }
+            if (id === 'announce_bank') {
+                try {
+                    await interaction.deferReply({ ephemeral: true });
+                    const db = require('../database.js');
+                    const { formatMoney } = require('../utils/helpers.js');
+                    
+                    const userId = interaction.user.id;
+                    const bankBalance = db.getBankBalance(userId);
+                    const mainBalance = db.getBalance(userId);
+                    const loan = db.getLoan(userId);
+                    
+                    const embed = new EmbedBuilder()
+                        .setTitle('🏦 BANK MANG UJANG')
+                        .setColor('#0099ff')
+                        .setDescription('Simpan uangmu di bank untuk aman dan dapat bunga!')
+                        .addFields(
+                            { name: '💰 Saldo Utama', value: `Rp ${formatMoney(mainBalance)}`, inline: true },
+                            { name: '🏦 Saldo Bank', value: `Rp ${formatMoney(bankBalance)}`, inline: true },
+                            { name: '💎 Total Assets', value: `Rp ${formatMoney(mainBalance + bankBalance)}`, inline: true }
+                        );
+
+                    if (loan && loan.loan_amount > 0) {
+                        const daysElapsed = Math.max(1, Math.floor((Date.now() - loan.loan_start_time) / (24 * 60 * 60 * 1000)));
+                        let interest = 0;
+                        let remaining = loan.loan_amount;
+                        
+                        for (let day = 0; day < daysElapsed; day++) {
+                            const dailyInterest = Math.floor(remaining * loan.interest_rate);
+                            interest += dailyInterest;
+                            remaining += dailyInterest;
+                        }
+                        
+                        const totalOwed = loan.loan_amount + interest;
+                        const daysLeft = Math.ceil((loan.loan_due_time - Date.now()) / (24 * 60 * 60 * 1000));
+                        
+                        embed.addFields(
+                            { name: '📋 Pinjaman Aktif', value: `Rp ${formatMoney(loan.loan_amount)}`, inline: false },
+                            { name: '💸 Bunga Terakumulasi', value: `Rp ${formatMoney(interest)} (${daysElapsed} hari)`, inline: true },
+                            { name: '💰 Total Hutang', value: `Rp ${formatMoney(totalOwed)}`, inline: true },
+                            { name: '⏰ Jatuh Tempo', value: `${daysLeft > 0 ? daysLeft : 'TERLAMBAT!'} hari`, inline: true }
+                        );
+                    }
+
+                    embed.setFooter({ text: 'Ketik !bank deposit/withdraw/loan untuk transaksi' });
+                    await interaction.editReply({ embeds: [embed] });
+                } catch (error) {
+                    console.error('[ANNOUNCE BANK ERROR]', error);
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            await interaction.editReply({ content: '❌ **Error:** Gagal menampilkan info bank.' });
+                        } else {
+                            await interaction.reply({ content: '❌ **Error:** Gagal menampilkan info bank.', ephemeral: true });
+                        }
+                    } catch (e) {
+                        console.error('[ANNOUNCE BANK ERROR - Follow up failed]', e);
+                    }
+                }
                 return;
             }
 
