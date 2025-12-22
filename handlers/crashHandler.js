@@ -359,8 +359,8 @@ module.exports = {
                 )
                 .setColor('#00FF00')
                 .setAuthor({ 
-                    name: message.author.username, 
-                    iconURL: message.author.displayAvatarURL({ dynamic: true }) 
+                    name: interaction.user.username, 
+                    iconURL: interaction.user.displayAvatarURL({ dynamic: true }) 
                 })
                 .setFooter({ text: `📈 Warung Mang Ujang : Reborn • History: ${this.getHistoryString()}` })
                 .setTimestamp();
@@ -393,6 +393,7 @@ module.exports = {
                     console.error('[CRASH FOLLOWUP ERROR]', e);
                 }
             }
+            } // Close if (interaction.customId === 'crash_cashout')
         } catch (error) {
             console.error('[CRASH INTERACTION ERROR]', error);
             try {
