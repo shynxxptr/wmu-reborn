@@ -568,7 +568,7 @@ module.exports = {
             let reel1Stopped = false;
             while (!reel1Stopped && (Date.now() - reel1Start) < 2000) {
                 const state = activeSimpleSlots.get(msg.id);
-                if (!state || state.currentReel > 0) {
+                if (!state || state.stopped || state.currentReel > 0) {
                     reel1StopTime = Date.now() - reel1Start;
                     reel1Stopped = true;
                     break;
@@ -591,7 +591,7 @@ module.exports = {
             let reel2Stopped = false;
             while (!reel2Stopped && (Date.now() - reel2Start) < 2000) {
                 const state = activeSimpleSlots.get(msg.id);
-                if (!state || state.currentReel > 1) {
+                if (!state || state.stopped || state.currentReel > 1) {
                     reel2StopTime = Date.now() - reel2Start;
                     reel2Stopped = true;
                     break;
@@ -1543,29 +1543,54 @@ module.exports = {
                 // Timing stop for simple slots - TRYHARD FEATURE
                 const state = activeSimpleSlots.get(interaction.message.id);
                 if (!state) {
-                    if (interaction.deferred || interaction.replied) {
-                        return interaction.editReply({ content: '❌ Game sudah berakhir.' });
+                    // Game already ended, just acknowledge
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            return; // Already handled
+                        }
+                        await interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+                    } catch (e) {
+                        // Ignore errors if interaction expired
                     }
-                    return interaction.reply({ content: '❌ Game sudah berakhir.', flags: [MessageFlags.Ephemeral] });
+                    return;
                 }
 
                 if (state.userId !== interaction.user.id) {
-                    if (interaction.deferred || interaction.replied) {
-                        return interaction.editReply({ content: '❌ Bukan game kamu!' });
+                    // Not the game owner, just acknowledge
+                    try {
+                        if (interaction.deferred || interaction.replied) {
+                            return; // Already handled
+                        }
+                        await interaction.reply({ content: '❌ Bukan game kamu!', flags: [MessageFlags.Ephemeral] });
+                    } catch (e) {
+                        // Ignore errors if interaction expired
                     }
-                    return interaction.reply({ content: '❌ Bukan game kamu!', flags: [MessageFlags.Ephemeral] });
+                    return;
                 }
 
                 // Stop current reel
-                state.currentReel++;
+                const reelNumber = state.currentReel + 1;
+                state.currentReel = reelNumber;
                 if (state.currentReel >= 3) {
                     state.stopped = true;
                 }
 
-                if (interaction.deferred || interaction.replied) {
-                    await interaction.editReply({ content: `🛑 Reel ${state.currentReel} dihentikan!` });
-                } else {
-                    await interaction.reply({ content: `🛑 Reel ${state.currentReel} dihentikan!`, flags: [MessageFlags.Ephemeral] });
+                // Update the original message to show stop status
+                // Don't use editReply, just acknowledge with update
+                try {
+                    if (interaction.deferred || interaction.replied) {
+                        // Already deferred, just return - the game loop will handle the update
+                        return;
+                    }
+                    // Acknowledge the interaction
+                    await interaction.update({ content: null }); // Clear any content, let the game loop update the embed
+                } catch (e) {
+                    // If update fails, try reply
+                    try {
+                        await interaction.reply({ content: `🛑 Reel ${reelNumber} dihentikan!`, flags: [MessageFlags.Ephemeral] });
+                    } catch (e2) {
+                        // Ignore if interaction expired
+                    }
                 }
             }
         } catch (error) {
