@@ -184,3 +184,5 @@ Semua fitur sudah diimplementasikan dan siap untuk testing. Game sekarang lebih:
 **Date:** $(date)
 **All Features:** Implemented & Ready
 
+
+

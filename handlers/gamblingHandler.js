@@ -369,7 +369,33 @@ module.exports = {
                 // TRACK STATS
                 db.trackGamePlay(userId, 'coinflip', true);
                 
-                // Check achievements (total wins)
+                // Prepare win message first (before async operations)
+                const luckMsg = luck > 0 ? `\n🍀 **Luck:** +${luck}%` : '';
+                const modeBadge = riskMode !== 'normal' ? `\n🎯 **Mode:** ${riskMode.toUpperCase()}` : '';
+                const historyText = history.length > 0 ? `\n📊 **History:** ${history.slice(-5).map(h => h.win ? '🟢' : '🔴').join(' ')}` : '';
+                
+                let achievementMsg = '';
+                if (achievementUnlocked) {
+                    achievementMsg = '\n\n🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!';
+                }
+                
+                const winStatus = `✅ **MENANG!** 🟢 [SUCCESS]\n` +
+                                 `💰 **Win:** +Rp ${formatMoney(finalWin)}\n` +
+                                 `${streakText}${luckMsg}${modeBadge}${historyText}${achievementMsg}\n` +
+                                 `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
+                                 `*${walletType}*`;
+                
+                // Update message FIRST to prevent stuck
+                try {
+                    await msg.edit({
+                        embeds: [createFlipEmbed(result, winStatus)],
+                        content: null
+                    });
+                } catch (editError) {
+                    console.error('[COINFLIP EDIT ERROR]', editError);
+                }
+                
+                // Then do async operations in background (non-blocking)
                 try {
                     const achievementHandler = require('./achievementHandler.js');
                     const unlocked = await achievementHandler.checkAchievements(userId);
@@ -394,39 +420,32 @@ module.exports = {
                     console.error('[COINFLIP ACHIEVEMENT ERROR]', e);
                 }
                 
-                // Celebrate streak milestones
-                if (streak.count === 10 || streak.count === 20) {
-                    const celebrationHandler = require('./celebrationHandler.js');
-                    await celebrationHandler.celebrateStreak(message.channel, message.author, streak.count);
+                // Celebrate streak milestones (non-blocking)
+                try {
+                    if (streak.count === 10 || streak.count === 20) {
+                        const celebrationHandler = require('./celebrationHandler.js');
+                        await celebrationHandler.celebrateStreak(message.channel, message.author, streak.count);
+                    }
+                } catch (e) {
+                    console.error('[COINFLIP STREAK CELEBRATION ERROR]', e);
                 }
                 
-                // Celebrate big win
-                if (finalWin >= 10000000) {
-                    const celebrationHandler = require('./celebrationHandler.js');
-                    await celebrationHandler.celebrateBigWin(message.channel, message.author, finalWin, multiplier);
+                // Celebrate big win (non-blocking)
+                try {
+                    if (finalWin >= 10000000) {
+                        const celebrationHandler = require('./celebrationHandler.js');
+                        await celebrationHandler.celebrateBigWin(message.channel, message.author, finalWin, multiplier);
+                    }
+                } catch (e) {
+                    console.error('[COINFLIP BIG WIN CELEBRATION ERROR]', e);
                 }
                 
-                missionHandler.trackMission(userId, 'win_coinflip');
-                
-                const luckMsg = luck > 0 ? `\n🍀 **Luck:** +${luck}%` : '';
-                const modeBadge = riskMode !== 'normal' ? `\n🎯 **Mode:** ${riskMode.toUpperCase()}` : '';
-                const historyText = history.length > 0 ? `\n📊 **History:** ${history.slice(-5).map(h => h.win ? '🟢' : '🔴').join(' ')}` : '';
-                
-                let achievementMsg = '';
-                if (achievementUnlocked) {
-                    achievementMsg = '\n\n🎉 **ACHIEVEMENT UNLOCKED!** Gunakan `!claim` untuk claim reward!';
+                // Track mission (non-blocking)
+                try {
+                    missionHandler.trackMission(userId, 'win_coinflip');
+                } catch (e) {
+                    console.error('[COINFLIP MISSION TRACK ERROR]', e);
                 }
-                
-                const winStatus = `✅ **MENANG!** 🟢 [SUCCESS]\n` +
-                                 `💰 **Win:** +Rp ${formatMoney(finalWin)}\n` +
-                                 `${streakText}${luckMsg}${modeBadge}${historyText}${achievementMsg}\n` +
-                                 `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                                 `*${walletType}*`;
-                
-                await msg.edit({
-                    embeds: [createFlipEmbed(result, winStatus)],
-                    content: null
-                });
             } else {
                 // Already deducted
                 const historyText = history.length > 0 ? `\n📊 **History:** ${history.slice(-5).map(h => h.win ? '🟢' : '🔴').join(' ')}` : '';

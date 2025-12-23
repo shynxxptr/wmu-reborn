@@ -243,3 +243,5 @@ CREATE TABLE user_banking (
 
 Sistem bank **SIAP DIGUNAKAN** untuk kompensasi atau fitur lainnya!
 
+
+

@@ -249,3 +249,5 @@ Sistem kompensasi sudah **FULLY IMPLEMENTED** dan siap untuk digunakan. Semua fi
 
 **Next Step:** Admin bisa langsung set package dengan `!compensatebulk base` dan user bisa claim dengan `!claimcompensation`!
 
+
+

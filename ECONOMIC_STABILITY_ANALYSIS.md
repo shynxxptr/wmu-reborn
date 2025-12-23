@@ -330,3 +330,5 @@
 - Sink: 10-35 Juta per hari
 - **Ratio: 40-60%** ✅ Stabil
 
+
+

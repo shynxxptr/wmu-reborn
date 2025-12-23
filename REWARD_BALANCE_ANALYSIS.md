@@ -166,3 +166,5 @@
 - Turunkan achievement rewards (max 50x max bet untuk highest)
 - Pertimbangkan naikkan max bet ke 20-30 Juta
 
+
+

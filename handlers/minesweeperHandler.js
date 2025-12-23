@@ -63,9 +63,93 @@ module.exports = {
         // TRACK STATS
         db.trackGamePlay(userId, 'bom', false);
 
-        // Generate Grid
+        // Generate Grid with Clustered Bombs (nempel-nempel untuk lebih mudah diprediksi)
         const grid = Array(GRID_SIZE).fill(0);
+        
+        // Helper function to get neighbors (adjacent cells)
+        const getNeighbors = (idx) => {
+            const row = Math.floor(idx / 4);
+            const col = idx % 4;
+            const neighbors = [];
+            
+            // Check all 8 directions (including diagonals)
+            for (let dr = -1; dr <= 1; dr++) {
+                for (let dc = -1; dc <= 1; dc++) {
+                    if (dr === 0 && dc === 0) continue; // Skip self
+                    const newRow = row + dr;
+                    const newCol = col + dc;
+                    if (newRow >= 0 && newRow < 4 && newCol >= 0 && newCol < 4) {
+                        neighbors.push(newRow * 4 + newCol);
+                    }
+                }
+            }
+            return neighbors;
+        };
+        
+        // Place bombs in clusters (2 clusters with 2 bombs each, or 1 cluster with 3-4 bombs)
         let placedBombs = 0;
+        
+        // Strategy: Create 1-2 clusters
+        const clusterCount = Math.random() < 0.5 ? 1 : 2; // 50% chance of 1 or 2 clusters
+        
+        if (clusterCount === 1) {
+            // Single cluster: Place all 4 bombs close together
+            const seedIdx = Math.floor(Math.random() * GRID_SIZE);
+            grid[seedIdx] = 1;
+            placedBombs++;
+            
+            // Place remaining bombs near the seed
+            const neighbors = getNeighbors(seedIdx);
+            const shuffledNeighbors = neighbors.sort(() => Math.random() - 0.5);
+            
+            for (let i = 0; i < shuffledNeighbors.length && placedBombs < BOMB_COUNT; i++) {
+                const neighborIdx = shuffledNeighbors[i];
+                if (grid[neighborIdx] === 0) {
+                    grid[neighborIdx] = 1;
+                    placedBombs++;
+                    
+                    // If we still need more bombs, try neighbors of this neighbor
+                    if (placedBombs < BOMB_COUNT) {
+                        const secondNeighbors = getNeighbors(neighborIdx);
+                        const shuffledSecond = secondNeighbors.sort(() => Math.random() - 0.5);
+                        for (let j = 0; j < shuffledSecond.length && placedBombs < BOMB_COUNT; j++) {
+                            const secondIdx = shuffledSecond[j];
+                            if (grid[secondIdx] === 0) {
+                                grid[secondIdx] = 1;
+                                placedBombs++;
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Two clusters: 2 bombs each
+            for (let cluster = 0; cluster < 2 && placedBombs < BOMB_COUNT; cluster++) {
+                // Find a random empty position for seed
+                let seedIdx;
+                do {
+                    seedIdx = Math.floor(Math.random() * GRID_SIZE);
+                } while (grid[seedIdx] === 1);
+                
+                grid[seedIdx] = 1;
+                placedBombs++;
+                
+                // Place 1 more bomb near this seed
+                const neighbors = getNeighbors(seedIdx);
+                const shuffledNeighbors = neighbors.sort(() => Math.random() - 0.5);
+                
+                for (let i = 0; i < shuffledNeighbors.length && placedBombs < (cluster + 1) * 2; i++) {
+                    const neighborIdx = shuffledNeighbors[i];
+                    if (grid[neighborIdx] === 0) {
+                        grid[neighborIdx] = 1;
+                        placedBombs++;
+                        break; // Only place 1 bomb per cluster seed
+                    }
+                }
+            }
+        }
+        
+        // Fallback: If we didn't place all bombs (shouldn't happen, but safety)
         while (placedBombs < BOMB_COUNT) {
             const idx = Math.floor(Math.random() * GRID_SIZE);
             if (grid[idx] === 0) {

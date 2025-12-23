@@ -150,3 +150,5 @@
 
 **Kesimpulan:** Sistem sekarang lebih fair untuk player dengan saldo sangat besar, dengan challenge yang sesuai dengan level kekayaan mereka.
 
+
+
